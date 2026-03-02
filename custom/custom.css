@@ -174,25 +174,53 @@ html body button[data-primary="true"]:active {
 
 /* =====================================
    SUGGESTION BUTTONS (homepage waterfall)
-   Bottoni lista suggerimenti → stile primary blu
+   Layout: griglia 3 colonne
+   Stile: ghost con colore #51abf5
 =====================================*/
 
+/* Outer wrapper: altezza dinamica */
+html body .h-40:has(div[role="list"]:has(button[role="listitem"].waterfall)) {
+    height: auto !important;
+}
+
+/* Container lista → griglia 3 colonne */
+html body div[role="list"]:has(button[role="listitem"].waterfall) {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 8px !important;
+    max-height: none !important;
+    overflow: visible !important;
+    height: auto !important;
+}
+
+/* Bottoni: gradiente #51abf5 scuro in alto → chiaro in basso, testo bianco */
 html body button[role="listitem"].waterfall {
-    background: var(--btn-primary-bg) !important;
-    border: 1px solid var(--btn-primary-border-top) !important;
-    box-shadow: var(--btn-primary-shadow) !important;
-    margin-bottom: 6px !important;
+    background: linear-gradient(180deg, #3a99e8 0%, #51abf5 50%, #6ec4f9 100%) !important;
+    border: 1px solid #3d96e0 !important;
+    box-shadow: none !important;
+    margin-bottom: 0 !important;
+    border-radius: 12px !important;
 }
 
 html body button[role="listitem"].waterfall:hover {
-    background: var(--btn-primary-bg) !important;
-    filter: brightness(1.08) !important;
+    background: linear-gradient(180deg, #2f8ad8 0%, #3d96e0 50%, #5ab4f0 100%) !important;
+    filter: none !important;
     transform: translateY(-1px) !important;
 }
 
-/* Testo dentro i bottoni: bianco su sfondo blu */
+/* Testo: bianco */
 html body button[role="listitem"].waterfall div {
     color: #ffffff !important;
+}
+
+/* Dark mode */
+html.dark body button[role="listitem"].waterfall {
+    background: linear-gradient(180deg, #3a99e8 0%, #51abf5 50%, #6ec4f9 100%) !important;
+    border-color: #3d96e0 !important;
+}
+
+html.dark body button[role="listitem"].waterfall:hover {
+    background: linear-gradient(180deg, #2f8ad8 0%, #3d96e0 50%, #5ab4f0 100%) !important;
 }
 
 /* =====================================
@@ -404,6 +432,21 @@ img.assistant-message-profile-image {
 /* Bottone Controls */
 button[aria-label="Controls"] {
     display: none !important;
+}
+
+/* =====================================
+   SIDEBAR: nascondi suffisso "(Open WebUI)"
+   Il testo nel DOM è "{WEBUI_NAME}" (es. "Boxed AI (Open WebUI)")
+   Trick: font-size:0 nasconde il testo originale,
+   ::before inietta solo il nome corretto
+=====================================*/
+#sidebar-webui-name {
+    font-size: 0 !important;
+}
+#sidebar-webui-name::before {
+    content: 'Boxed AI' !important;
+    font-size: 0.9375rem !important;
+    font-weight: 500 !important;
 }
 
 
