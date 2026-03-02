@@ -173,6 +173,29 @@ html body button[data-primary="true"]:active {
 }
 
 /* =====================================
+   SUGGESTION BUTTONS (homepage waterfall)
+   Bottoni lista suggerimenti → stile primary blu
+=====================================*/
+
+html body button[role="listitem"].waterfall {
+    background: var(--btn-primary-bg) !important;
+    border: 1px solid var(--btn-primary-border-top) !important;
+    box-shadow: var(--btn-primary-shadow) !important;
+    margin-bottom: 6px !important;
+}
+
+html body button[role="listitem"].waterfall:hover {
+    background: var(--btn-primary-bg) !important;
+    filter: brightness(1.08) !important;
+    transform: translateY(-1px) !important;
+}
+
+/* Testo dentro i bottoni: bianco su sfondo blu */
+html body button[role="listitem"].waterfall div {
+    color: #ffffff !important;
+}
+
+/* =====================================
    INPUT FIELDS
 =====================================*/
 
