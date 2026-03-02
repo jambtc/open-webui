@@ -68,20 +68,20 @@
 					<Marquee
 						duration={5000}
 						words={[
-							$i18n.t('Explore the cosmos'),
-							$i18n.t('Unlock mysteries'),
-							$i18n.t('Chart new frontiers'),
-							$i18n.t('Dive into knowledge'),
-							$i18n.t('Discover wonders'),
-							$i18n.t('Ignite curiosity'),
-							$i18n.t('Forge new paths'),
-							$i18n.t('Unravel secrets'),
-							$i18n.t('Pioneer insights'),
-							$i18n.t('Embark on adventures')
+							'La tua AI personale',
+							'Parla con i tuoi documenti',
+							'Crea contenuti straordinari',
+							'Risposte in tempo reale',
+							'Amplifica le tue idee',
+							'Lavora più intelligente',
+							'Esplora senza confini',
+							'Scopri il potere dell\'AI',
+							'Soluzioni intelligenti',
+							'Connetti conoscenza e azione'
 						]}
 					/>
 
-					<div class="mt-0.5">{$i18n.t(`wherever you are`)}</div>
+					<div class="mt-0.5">Ovunque tu sia</div>
 				</div>
 
 				<div class="flex justify-center mt-8">
