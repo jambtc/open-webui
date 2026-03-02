@@ -3,10 +3,9 @@
 	import { onMount } from 'svelte';
 
 	export let imageUrls = [
-		`${WEBUI_BASE_URL}/assets/images/adam.jpg`,
-		`${WEBUI_BASE_URL}/assets/images/galaxy.jpg`,
-		`${WEBUI_BASE_URL}/assets/images/earth.jpg`,
-		`${WEBUI_BASE_URL}/assets/images/space.jpg`
+		`${WEBUI_BASE_URL}/assets/images/boxedai1.jpg`,
+		`${WEBUI_BASE_URL}/assets/images/boxedai2.jpg`,
+		`${WEBUI_BASE_URL}/assets/images/boxedai3.jpg`
 	];
 	export let duration = 5000;
 	let selectedImageIdx = 0;
