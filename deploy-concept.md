@@ -6,7 +6,11 @@ Open WebUI è un'applicazione **SvelteKit** con **TailwindCSS**. Esistono due li
 
 ## 1. CSS Personalizzato (senza rebuild)
 
+<<<<<<< HEAD
 Il file caricato dall'app è `/static/custom.css` (link in `src/app.html`). In deploy Docker viene generato da `/app/build/static/custom.css`.
+=======
+Il file `/var/www/open-webui/static/static/custom.css` è incluso automaticamente in ogni pagina e attualmente è **vuoto**. Qualsiasi CSS scritto qui sovrascrive gli stili esistenti:
+>>>>>>> aab1f57c6 (WIP: branding/custom)
 
 
 ```css
@@ -34,8 +38,15 @@ Il file caricato dall'app è `/static/custom.css` (link in `src/app.html`). In d
 
 ## 2. Logo e Icone (senza rebuild)
 
+<<<<<<< HEAD
 In Docker i file personalizzati vanno preparati in `/app/build/static/`.
 Open WebUI, all'avvio, ricrea `/app/backend/open_webui/static/` copiando da `/app/build/static/`.
+=======
+I file si trovano in **due path equivalenti** (entrambi vanno aggiornati):
+
+- `/var/www/open-webui/backend/open_webui/static/` — sorgente backend
+- `/var/www/open-webui/static/static/` — copia servita da nginx
+>>>>>>> aab1f57c6 (WIP: branding/custom)
 
 ### Branding attuale: Boxed AI
 
@@ -62,7 +73,11 @@ I file sono stati aggiornati con il branding da `/var/www/boxedai-web-ui`:
 
 ### Deploy su server Docker
 
+<<<<<<< HEAD
 Il container si chiama `open-webui`. Il path interno servito è:
+=======
+Il container si chiama `mvp-open-webui`. Il path interno dei file statici è:
+>>>>>>> aab1f57c6 (WIP: branding/custom)
 
 ```text
 /app/backend/open_webui/static/
@@ -70,7 +85,11 @@ Il container si chiama `open-webui`. Il path interno servito è:
 
 **Non è necessario `npm run build`** — il backend Python serve i file statici direttamente senza compilazione.
 
+<<<<<<< HEAD
 > I file copiati direttamente in `/app/backend/open_webui/static` vengono sovrascritti al boot. La soluzione robusta è aggiornare `/app/build/static` prima di avviare l'app (es. via `entrypoint.sh` + zip).
+=======
+> I file statici non sono persistenti con `docker cp`: ogni `docker-compose up` ripristina l'immagine originale. La soluzione sono i **bind mount** nel `docker-compose.yml`.
+>>>>>>> aab1f57c6 (WIP: branding/custom)
 > `WEBUI_NAME=Boxed AI` nell'environment aggiunge automaticamente il suffisso `(Open WebUI)` — va rimosso patchando `env.py`.
 
 I file di branding, lo script e la procedura operativa completa sono in:
