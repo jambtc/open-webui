@@ -9,9 +9,11 @@ Documentazione concettuale: [customizzazione-interfaccia.md](customizzazione-int
 
 Il branding viene applicato **automaticamente ad ogni avvio del container** tramite `custom/entrypoint.sh`:
 
-1. Estrae `boxedai-branding.zip` in `/app/backend/open_webui/static/`
+1. Estrae `boxedai-branding.zip` in `/app/build/static/`
 2. Patcha `env.py` per rimuovere il suffisso automatico "(Open WebUI)"
 3. Avvia Open WebUI normalmente (`bash start.sh`)
+
+Nota tecnica: Open WebUI ricrea `/app/backend/open_webui/static/` da `/app/build/static/` a ogni avvio. Per questo i file vanno copiati in `/app/build/static/`.
 
 Il `docker-compose.yaml` monta solo due file:
 
@@ -22,7 +24,7 @@ volumes:
   - ./custom/entrypoint.sh:/entrypoint.sh:ro
 ```
 
-E usa `command: ["bash", "/entrypoint.sh"]` al posto dell'entrypoint di default.
+E usa `entrypoint: ["bash", "/entrypoint.sh"]`.
 
 ---
 
@@ -52,7 +54,7 @@ La sezione `open-webui` deve avere:
     environment:
       - WEBUI_NAME=Boxed AI
       # ... altri env var
-    command: ["bash", "/entrypoint.sh"]
+    entrypoint: ["bash", "/entrypoint.sh"]
 ```
 
 ### 3. Avvia
@@ -100,6 +102,9 @@ Verifica che lo zip sia montato correttamente:
 ```bash
 docker exec open-webui ls /custom/
 # deve mostrare boxedai-branding.zip
+
+docker exec open-webui ls /app/build/static/logo.png
+# deve esistere
 
 docker exec open-webui ls /app/backend/open_webui/static/logo.png
 # deve esistere
