@@ -16,36 +16,19 @@ services:
     container_name: open-webui
     volumes:
       - open-webui:/app/backend/data
-      - ./custom/env.py:/app/backend/open_webui/env.py:ro
-      - ./custom/apple-touch-icon.png:/app/backend/open_webui/static/apple-touch-icon.png:ro
-      - ./custom/enac-logo-bianco.png:/app/backend/open_webui/static/enac-logo-bianco.png:ro
-      - ./custom/enac-logo-blu.png:/app/backend/open_webui/static/enac-logo-blu.png:ro
-      - ./custom/favicon-96x96.png:/app/backend/open_webui/static/favicon-96x96.png:ro
-      - ./custom/favicon-dark.png:/app/backend/open_webui/static/favicon-dark.png:ro
-      - ./custom/favicon.png:/app/backend/open_webui/static/favicon.png:ro
-      - ./custom/logo.png:/app/backend/open_webui/static/logo.png:ro
-      - ./custom/splash-dark.png:/app/backend/open_webui/static/splash-dark.png:ro
-      - ./custom/splash.png:/app/backend/open_webui/static/splash.png:ro
-      - ./custom/web-app-manifest-192x192.png:/app/backend/open_webui/static/web-app-manifest-192x192.png:ro
-      - ./custom/web-app-manifest-512x512.png:/app/backend/open_webui/static/web-app-manifest-512x512.png:ro
-      - ./custom/favicon.ico:/app/backend/open_webui/static/favicon.ico:ro
-      - ./custom/custom.css:/app/backend/open_webui/static/custom.css:ro
-      - ./custom/site.webmanifest:/app/backend/open_webui/static/site.webmanifest:ro
-      - ./custom/boxedai1.jpg:/app/backend/open_webui/static/assets/images/adam.jpg:ro
-      - ./custom/boxedai2.jpg:/app/backend/open_webui/static/assets/images/galaxy.jpg:ro
-      - ./custom/boxedai3.jpg:/app/backend/open_webui/static/assets/images/earth.jpg:ro
-
+      - ./custom/boxedai-branding.zip:/custom/boxedai-branding.zip:ro
+      - ./custom/entrypoint.sh:/entrypoint.sh:ro
     depends_on:
       - ollama
     ports:
-      - ${OPEN_WEBUI_PORT-3000}:8080
+      - ${OPEN_WEBUI_PORT-127.0.0.1:3001}:8080
     environment:
       - WEBUI_AUTH=true
       - OLLAMA_BASE_URL=http://ollama:11434
       - WEBUI_NAME=Boxed AI
       - ENABLE_PIPES=true
-      - PIPELINES_URL=${OPENCLAW_OPENAI_PROXY-http://127.0.0.1:4010}
-
+      - PIPELINES_URL=${OPENCLAW_OPENAI_PROXY:-http://host.docker.internal:4010}
+    command: ["bash", "/entrypoint.sh"]
     extra_hosts:
       - host.docker.internal:host-gateway
     restart: unless-stopped
