@@ -390,7 +390,7 @@ html body #auth-container .sm\:max-w-md::before {
     width: 140px;
     height: auto;
     aspect-ratio: 327/298;
-    background: url('/static/logo.png') center / contain no-repeat;
+    background: url('/static/logo-testo.png') center / contain no-repeat;
     margin: 0 auto 20px;
 }
 
