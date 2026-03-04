@@ -35,7 +35,7 @@ E usa `entrypoint: ["bash", "/entrypoint.sh"]`.
 Dal PC locale, dalla cartella `open-webui/`:
 
 ```bash
-cd /var/www/documents/progetti/openclaw/open-webui
+cd /var/www/open-webui
 scp custom/boxedai-branding.zip custom/entrypoint.sh root@SERVER:/home/node/mvp-ai/custom/
 ```
 
