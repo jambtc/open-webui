@@ -449,4 +449,23 @@ button[aria-label="Controls"] {
     font-weight: 500 !important;
 }
 
+/* =====================================
+   HOMEPAGE HEADER: avatar + nome modello
+   → sostituisce con logo-testo.png
+   Selettore: il div esterno contiene
+   button[aria-label*="Get information on … in the UI"]
+=====================================*/
+div:has(> div > div > div > button[aria-label*="Get information on"]) > div:first-child,
+div:has(> div > div > div > button[aria-label*="Get information on"]) > div:nth-child(2) {
+    display: none !important;
+}
+
+div:has(> div > div > div > button[aria-label*="Get information on"])::before {
+    content: '';
+    display: block;
+    background: url('/static/logo-testo.png') center / contain no-repeat;
+    width: 240px;
+    height: 56px;
+}
+
 

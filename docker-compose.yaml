@@ -28,7 +28,7 @@ services:
       - WEBUI_NAME=Boxed AI
       - ENABLE_PIPES=true
       - PIPELINES_URL=${OPENCLAW_OPENAI_PROXY:-http://host.docker.internal:4010}
-    command: ["bash", "/entrypoint.sh"]
+    entrypoint: ["bash", "/entrypoint.sh"]
     extra_hosts:
       - host.docker.internal:host-gateway
     restart: unless-stopped

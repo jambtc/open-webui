@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ZIP="/custom/boxedai-branding.zip"
-STATIC="/app/backend/open_webui/static"
-TMP="/tmp/boxedai-branding"
-ENV_PY="/app/backend/open_webui/env.py"
-
-# 1) Extract zip + copy assets in /static
+# 1) Extract zip + copy assets into FRONTEND build static directory.
+# Open WebUI rebuilds /app/backend/open_webui/static from /app/build/static on startup.
 python3 - <<'PY'
-import zipfile, shutil, pathlib
+import os
+import zipfile
+import shutil
+import pathlib
 
 zip_path = pathlib.Path("/custom/boxedai-branding.zip")
 tmp = pathlib.Path("/tmp/boxedai-branding")
-static = pathlib.Path("/app/backend/open_webui/static")
+frontend_build_dir = pathlib.Path(os.environ.get("FRONTEND_BUILD_DIR", "/app/build"))
+frontend_static = frontend_build_dir / "static"
 
 tmp.mkdir(parents=True, exist_ok=True)
 with zipfile.ZipFile(zip_path) as z:
@@ -28,10 +28,11 @@ files = [
     "enac-logo-bianco.png","enac-logo-blu.png",
 ]
 
+frontend_static.mkdir(parents=True, exist_ok=True)
 for name in files:
     src = tmp / name
     if src.exists():
-        shutil.copy2(src, static / name)
+        shutil.copy2(src, frontend_static / name)
 PY
 
 # 2) Patch env.py (remove suffix "(Open WebUI)") — idempotente
