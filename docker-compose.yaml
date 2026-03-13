@@ -23,11 +23,21 @@ services:
     ports:
       - ${OPEN_WEBUI_PORT-127.0.0.1:3001}:8080
     environment:
-      - WEBUI_AUTH=true
       - OLLAMA_BASE_URL=http://ollama:11434
-      - WEBUI_NAME=Boxed AI
+      - WEBUI_NAME=${WEBUI_NAME:-Boxed AI}
+      - WEBUI_URL=${WEBUI_URL}
       - ENABLE_PIPES=true
       - PIPELINES_URL=${OPENCLAW_OPENAI_PROXY:-http://host.docker.internal:4010}
+      # environment per keycloak
+      - WEBUI_AUTH=${WEBUI_AUTH:-true} # Set to false to disable authentication and use only with OAuth
+      - ENABLE_OAUTH_SIGNUP=${ENABLE_OAUTH_SIGNUP:-true} # Set to true to enable OAuth signup
+      - OAUTH_CLIENT_ID=${OAUTH_CLIENT_ID}
+      - OAUTH_CLIENT_SECRET=${OAUTH_CLIENT_SECRET}
+      - OPENID_PROVIDER_URL=${OPENID_PROVIDER_URL}
+      - OAUTH_PROVIDER_NAME=${OAUTH_PROVIDER_NAME}
+      - OPENID_REDIRECT_URI=${OPENID_REDIRECT_URI}
+      - WEBUI_AUTH_SIGNOUT_REDIRECT_URL=${WEBUI_AUTH_SIGNOUT_REDIRECT_URL}
+
     entrypoint: ["bash", "/entrypoint.sh"]
     extra_hosts:
       - host.docker.internal:host-gateway
