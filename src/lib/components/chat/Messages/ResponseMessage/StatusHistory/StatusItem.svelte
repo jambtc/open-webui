@@ -9,7 +9,7 @@
 	export let done = false;
 </script>
 
-{#if !status?.hidden}
+{#if !status?.hidden && !(status?.action === 'sources_retrieved' && status?.count === 0)}
 	<div class="status-description flex items-center gap-2 py-0.5 w-full text-left">
 		{#if status?.action === 'web_search' && (status?.urls || status?.items)}
 			<WebSearchResults {status}>
