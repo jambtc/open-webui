@@ -467,5 +467,3 @@ div:has(> div > div > div > button[aria-label*="Get information on"])::before {
     width: 240px;
     height: 56px;
 }
-
-
