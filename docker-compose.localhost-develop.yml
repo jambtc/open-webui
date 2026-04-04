@@ -1,0 +1,4 @@
+services:
+  open-webui:
+    extra_hosts:
+      - kc-boxedai.local:host-gateway
