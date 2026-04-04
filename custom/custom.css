@@ -173,7 +173,6 @@ html body button[data-primary="true"]:active {
 }
 
 /* =====================================
-<<<<<<< HEAD
    SUGGESTION BUTTONS (homepage waterfall)
    Layout: griglia 3 colonne
    Stile: ghost con colore #51abf5
@@ -225,8 +224,6 @@ html.dark body button[role="listitem"].waterfall:hover {
 }
 
 /* =====================================
-=======
->>>>>>> aab1f57c6 (WIP: branding/custom)
    INPUT FIELDS
 =====================================*/
 
@@ -393,11 +390,7 @@ html body #auth-container .sm\:max-w-md::before {
     width: 140px;
     height: auto;
     aspect-ratio: 327/298;
-<<<<<<< HEAD
     background: url('/static/logo-testo.png') center / contain no-repeat;
-=======
-    background: url('/static/logo.png') center / contain no-repeat;
->>>>>>> aab1f57c6 (WIP: branding/custom)
     margin: 0 auto 20px;
 }
 
@@ -441,7 +434,6 @@ button[aria-label="Controls"] {
     display: none !important;
 }
 
-<<<<<<< HEAD
 /* =====================================
    SIDEBAR: nascondi suffisso "(Open WebUI)"
    Il testo nel DOM è "{WEBUI_NAME}" (es. "Boxed AI (Open WebUI)")
@@ -475,7 +467,3 @@ div:has(> div > div > div > button[aria-label*="Get information on"])::before {
     width: 240px;
     height: 56px;
 }
-
-=======
->>>>>>> aab1f57c6 (WIP: branding/custom)
-
