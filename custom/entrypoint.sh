@@ -42,7 +42,7 @@ import re, pathlib
 p = pathlib.Path("/app/backend/open_webui/env.py")
 s = p.read_text()
 
-pattern = r'\nif WEBUI_NAME != "Open WebUI":\n\s+WEBUI_NAME \+= " \(Open WebUI\)"\n'
+pattern = r"""\nif WEBUI_NAME != ['\"]Open WebUI['\"]:\n\s+WEBUI_NAME \+= ['\"] \(Open WebUI\)['\"]\n"""
 patched = re.sub(pattern, "\n", s, flags=re.MULTILINE)
 
 if patched != s:
