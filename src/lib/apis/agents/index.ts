@@ -88,3 +88,51 @@ export const getAgentById = async (
 
 	return res;
 };
+
+
+export type CreateAgentPayload = {
+	name: string;
+	workspace: string;
+	emoji?: string | null;
+	avatar?: string | null;
+};
+
+export type AgentCreateResponse = {
+	created: boolean;
+	agent_id: string | null;
+	name: string | null;
+	workspace: string | null;
+	openclaw_result?: Record<string, unknown> | null;
+};
+
+export const createAgent = async (
+	token: string = '',
+	body: CreateAgentPayload
+): Promise<AgentCreateResponse> => {
+	let error = null;
+
+	const res = await fetch(`${WEBUI_API_BASE_URL}/agents`, {
+		method: 'POST',
+		headers: {
+			Accept: 'application/json',
+			'Content-Type': 'application/json',
+			...(token && { authorization: `Bearer ${token}` })
+		},
+		body: JSON.stringify(body)
+	})
+		.then(async (res) => {
+			if (!res.ok) throw await res.json();
+			return res.json();
+		})
+		.catch((err) => {
+			error = err?.detail ?? err;
+			console.error(err);
+			return null;
+		});
+
+	if (error) {
+		throw error;
+	}
+
+	return res;
+};

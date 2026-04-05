@@ -1,10 +1,12 @@
 <script lang="ts">
 	import { getContext, onMount } from 'svelte';
+	import { toast } from 'svelte-sonner';
 	import { goto } from '$app/navigation';
-	import { getAgents, type AgentItem } from '$lib/apis/agents';
+	import { createAgent, getAgentById, getAgents, type AgentItem, type CreateAgentPayload } from '$lib/apis/agents';
 	import { mobile, showArchivedChats, showSidebar, user } from '$lib/stores';
 
 	import UserMenu from '$lib/components/layout/Sidebar/UserMenu.svelte';
+	import CreateAgentModal from '$lib/components/agents/CreateAgentModal.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import Sidebar from '$lib/components/icons/Sidebar.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
@@ -16,12 +18,53 @@
 	let errorMessage = '';
 	let agents: AgentItem[] = [];
 	let defaultAgentId: string | null = null;
+	let showCreateAgentModal = false;
+	let createLoading = false;
+
+	const loadAgents = async () => {
+		const res = await getAgents(localStorage.token);
+		agents = res?.items ?? [];
+		defaultAgentId = res?.default_agent_id ?? null;
+	};
+
+	const waitForAgentDetail = async (agentId: string, attempts: number = 10, delayMs: number = 250) => {
+		for (let attempt = 0; attempt < attempts; attempt += 1) {
+			try {
+				await getAgentById(localStorage.token, agentId);
+				return true;
+			} catch (error) {
+				if (`${error}`.includes('not found') && attempt < attempts - 1) {
+					await new Promise((resolve) => setTimeout(resolve, delayMs));
+					continue;
+				}
+				throw error;
+			}
+		}
+
+		return false;
+	};
+
+	const createAgentHandler = async (payload: CreateAgentPayload) => {
+		createLoading = true;
+		try {
+			const res = await createAgent(localStorage.token, payload);
+			toast.success('Agent created successfully');
+			showCreateAgentModal = false;
+			await loadAgents();
+			if (res?.agent_id) {
+				await waitForAgentDetail(res.agent_id);
+				goto(`/agents/${res.agent_id}`);
+			}
+		} catch (error) {
+			toast.error(`${error}`);
+		} finally {
+			createLoading = false;
+		}
+	};
 
 	onMount(async () => {
 		try {
-			const res = await getAgents(localStorage.token);
-			agents = res?.items ?? [];
-			defaultAgentId = res?.default_agent_id ?? null;
+			await loadAgents();
 		} catch (error) {
 			errorMessage = `${error}`;
 		} finally {
@@ -108,11 +151,22 @@
 			</div>
 		{:else}
 			<div class="mx-auto w-full max-w-4xl space-y-4">
-				<div>
-					<h1 class="text-xl font-semibold text-gray-900 dark:text-gray-100">{$i18n.t('Agents')}</h1>
-					<p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-						Lista agenti esposta dal backend tramite gateway.
-					</p>
+				<div class="flex items-start justify-between gap-4">
+					<div>
+						<h1 class="text-xl font-semibold text-gray-900 dark:text-gray-100">{$i18n.t('Agents')}</h1>
+						<p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+							Lista agenti esposta dal backend tramite gateway.
+						</p>
+					</div>
+					<button
+						type="button"
+						class="rounded-xl bg-black px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 dark:bg-white dark:text-black"
+						on:click={() => {
+							showCreateAgentModal = true;
+						}}
+					>
+						{$i18n.t('Create Agent')}
+					</button>
 				</div>
 
 				<div class="grid gap-3">
@@ -145,3 +199,6 @@
 		{/if}
 	</div>
 </div>
+
+
+<CreateAgentModal bind:show={showCreateAgentModal} loading={createLoading} onSubmit={createAgentHandler} />

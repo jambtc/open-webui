@@ -12,6 +12,37 @@ log = logging.getLogger(__name__)
 
 router = APIRouter()
 
+
+@router.post('/agents')
+async def create_agent(request: Request, user=Depends(get_verified_user)):
+    if not OPENCLAW_OPENAI_PROXY:
+        raise HTTPException(status_code=500, detail='OPENCLAW_OPENAI_PROXY is not configured')
+
+    headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+    authorization = request.headers.get('authorization')
+    if authorization:
+        headers['authorization'] = authorization
+
+    try:
+        body = await request.json()
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f'Invalid JSON body: {exc}')
+
+    upstream_url = f"{OPENCLAW_OPENAI_PROXY}/api/v1/agents"
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(upstream_url, json=body, headers=headers) as response:
+                payload = await response.json(content_type=None)
+                return JSONResponse(content=payload, status_code=response.status)
+    except aiohttp.ClientResponseError as exc:
+        log.exception('Create agent proxy upstream response error: %s', exc)
+        raise HTTPException(status_code=502, detail='Create agent upstream response error')
+    except Exception as exc:
+        log.exception('Create agent proxy upstream error: %s', exc)
+        raise HTTPException(status_code=502, detail='Create agent upstream error')
+
+
 OPENCLAW_OPENAI_PROXY = os.environ.get('OPENCLAW_OPENAI_PROXY', '').rstrip('/')
 
 
