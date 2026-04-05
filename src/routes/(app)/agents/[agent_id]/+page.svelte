@@ -1,12 +1,14 @@
 <script lang="ts">
 	import { getContext, onMount } from 'svelte';
+	import { toast } from 'svelte-sonner';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 
-	import { getAgentById, type AgentDetailResponse } from '$lib/apis/agents';
+	import { getAgentById, updateAgent, type AgentDetailResponse, type UpdateAgentPayload } from '$lib/apis/agents';
 	import { mobile, showArchivedChats, showSidebar, user } from '$lib/stores';
 
 	import UserMenu from '$lib/components/layout/Sidebar/UserMenu.svelte';
+	import EditAgentModal from '$lib/components/agents/EditAgentModal.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import Sidebar from '$lib/components/icons/Sidebar.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
@@ -17,10 +19,81 @@
 	let loaded = false;
 	let errorMessage = '';
 	let agent: AgentDetailResponse | null = null;
+	let showEditAgentModal = false;
+	let editLoading = false;
+
+	const getAgentWorkspace = (currentAgent: AgentDetailResponse | null) => {
+		if (!currentAgent) return '';
+
+		if (typeof currentAgent.workspace === 'string' && currentAgent.workspace.trim()) {
+			return currentAgent.workspace.trim();
+		}
+
+		const identity = currentAgent.identity ?? {};
+		const candidates = [
+			identity?.workspace,
+			identity?.cwd,
+			identity?.root,
+			identity?.path,
+			identity?.workspace_path
+		];
+
+		for (const value of candidates) {
+			if (typeof value === 'string' && value.trim()) {
+				return value.trim();
+			}
+		}
+
+		return '';
+	};
+
+	const loadAgent = async () => {
+		errorMessage = '';
+		agent = await getAgentById(localStorage.token, $page.params.agent_id);
+		return agent;
+	};
+
+	const waitForUpdatedAgent = async (payload: UpdateAgentPayload, maxAttempts = 8, delayMs = 250) => {
+		for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+			const currentAgent = await getAgentById(localStorage.token, $page.params.agent_id);
+			const currentWorkspace = getAgentWorkspace(currentAgent);
+			const currentAvatar =
+				typeof currentAgent?.identity?.avatar_url === 'string' ? currentAgent.identity.avatar_url.trim() : '';
+
+			const matches =
+				(payload.name === undefined || (currentAgent.name ?? '') === payload.name) &&
+				(payload.workspace === undefined || currentWorkspace === payload.workspace) &&
+				(payload.model === undefined || (currentAgent.model ?? '') === payload.model) &&
+				(payload.avatar === undefined || currentAvatar === payload.avatar);
+
+			if (matches) {
+				agent = currentAgent;
+				return currentAgent;
+			}
+
+			await new Promise((resolve) => setTimeout(resolve, delayMs));
+		}
+
+		return loadAgent();
+	};
+
+	const updateAgentHandler = async (payload: UpdateAgentPayload) => {
+		editLoading = true;
+		try {
+			await updateAgent(localStorage.token, $page.params.agent_id, payload);
+			await waitForUpdatedAgent(payload);
+			showEditAgentModal = false;
+			toast.success('Agent updated successfully');
+		} catch (error) {
+			toast.error(`${error}`);
+		} finally {
+			editLoading = false;
+		}
+	};
 
 	onMount(async () => {
 		try {
-			agent = await getAgentById(localStorage.token, $page.params.agent_id);
+			await loadAgent();
 		} catch (error) {
 			errorMessage = `${error}`;
 		} finally {
@@ -123,11 +196,22 @@
 								{agent.agent_id}
 							</div>
 						</div>
-						{#if agent.is_default}
-							<span class="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-200">
-								Default
-							</span>
-						{/if}
+						<div class="flex items-center gap-2">
+							{#if agent.is_default}
+								<span class="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-200">
+									Default
+								</span>
+							{/if}
+							<button
+								type="button"
+								class="rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-850"
+								on:click={() => {
+									showEditAgentModal = true;
+								}}
+							>
+								{$i18n.t('Edit Agent')}
+							</button>
+						</div>
 					</div>
 				</div>
 
@@ -137,7 +221,7 @@
 						<dl class="mt-3 space-y-2 text-sm">
 							<div>
 								<dt class="text-gray-500 dark:text-gray-400">Workspace</dt>
-								<dd class="text-gray-900 dark:text-gray-100">{agent.workspace ?? 'n/a'}</dd>
+								<dd class="text-gray-900 dark:text-gray-100">{getAgentWorkspace(agent) || 'n/a'}</dd>
 							</div>
 							<div>
 								<dt class="text-gray-500 dark:text-gray-400">Model</dt>
@@ -174,3 +258,13 @@
 		{/if}
 	</div>
 </div>
+
+<EditAgentModal
+	bind:show={showEditAgentModal}
+	loading={editLoading}
+	initialName={agent?.name ?? ''}
+	initialWorkspace={getAgentWorkspace(agent)}
+	initialModel={agent?.model ?? ''}
+	initialAvatar={typeof agent?.identity?.avatar_url === 'string' ? agent.identity.avatar_url : ''}
+	onSubmit={updateAgentHandler}
+/>

@@ -14,15 +14,20 @@
 	let workspace = '';
 	let emoji = '';
 	let avatar = '';
+	let showWorkspaceError = false;
 
 	$: if (!show) {
 		name = '';
 		workspace = '';
 		emoji = '';
 		avatar = '';
+		showWorkspaceError = false;
 	}
 
 	const submitHandler = async () => {
+		showWorkspaceError = !workspace.trim();
+		if (showWorkspaceError) return;
+
 		await onSubmit({
 			name: name.trim(),
 			workspace: workspace.trim(),
@@ -69,10 +74,17 @@
 						class="w-full text-sm bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-700 outline-hidden"
 						type="text"
 						bind:value={workspace}
-						placeholder="/workspace/assistant"
+						placeholder="/workspace/..."
 						autocomplete="off"
+						on:input={() => {
+							if (workspace.trim()) showWorkspaceError = false;
+						}}
 						required
 					/>
+					<div class="mt-1 text-xs text-gray-500">La workspace deve stare sotto <code>/workspace</code>.</div>
+					{#if showWorkspaceError}
+						<div class="mt-1 text-xs text-red-600 dark:text-red-400">Workspace is required.</div>
+					{/if}
 				</div>
 
 				<div class="grid gap-3 mt-3 md:grid-cols-2">
@@ -103,7 +115,7 @@
 					<button
 						type="submit"
 						class="min-w-28 rounded-xl bg-black px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-black"
-						disabled={loading || !name.trim() || !workspace.trim()}
+						disabled={loading || !name.trim()}
 					>
 						{#if loading}
 							<Spinner className="size-4" />

@@ -136,3 +136,50 @@ export const createAgent = async (
 
 	return res;
 };
+
+
+export type UpdateAgentPayload = {
+	name?: string;
+	workspace?: string;
+	model?: string;
+	avatar?: string;
+};
+
+export type AgentUpdateResponse = {
+	updated: boolean;
+	agent_id: string;
+	openclaw_result?: Record<string, unknown> | null;
+};
+
+export const updateAgent = async (
+	token: string = '',
+	agentId: string,
+	body: UpdateAgentPayload
+): Promise<AgentUpdateResponse> => {
+	let error = null;
+
+	const res = await fetch(`${WEBUI_API_BASE_URL}/agents/${agentId}`, {
+		method: 'PATCH',
+		headers: {
+			Accept: 'application/json',
+			'Content-Type': 'application/json',
+			...(token && { authorization: `Bearer ${token}` })
+		},
+		body: JSON.stringify(body)
+	})
+		.then(async (res) => {
+			if (!res.ok) throw await res.json();
+			return res.json();
+		})
+		.catch((err) => {
+			error = err?.detail ?? err;
+			console.error(err);
+			return null;
+		});
+
+	if (error) {
+		throw error;
+	}
+
+	return res;
+};
