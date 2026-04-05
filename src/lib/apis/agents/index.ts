@@ -43,3 +43,48 @@ export const getAgents = async (token: string = ''): Promise<AgentsListResponse>
 
 	return res;
 };
+
+
+export type AgentDetailResponse = AgentItem & {
+	identity: Record<string, unknown> | null;
+	files: Record<string, unknown>[] | null;
+	warnings: string[];
+};
+
+export const getAgentById = async (
+	token: string = '',
+	agentId: string,
+	includeFiles: boolean = false
+): Promise<AgentDetailResponse> => {
+	let error = null;
+
+	const searchParams = new URLSearchParams();
+	if (includeFiles) searchParams.append('include_files', 'true');
+
+	const res = await fetch(
+		`${WEBUI_API_BASE_URL}/agents/${agentId}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`,
+		{
+			method: 'GET',
+			headers: {
+				Accept: 'application/json',
+				'Content-Type': 'application/json',
+				...(token && { authorization: `Bearer ${token}` })
+			}
+		}
+	)
+		.then(async (res) => {
+			if (!res.ok) throw await res.json();
+			return res.json();
+		})
+		.catch((err) => {
+			error = err?.detail ?? err;
+			console.error(err);
+			return null;
+		});
+
+	if (error) {
+		throw error;
+	}
+
+	return res;
+};
