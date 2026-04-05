@@ -4,7 +4,13 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 
-	import { getAgentById, updateAgent, type AgentDetailResponse, type UpdateAgentPayload } from '$lib/apis/agents';
+	import {
+		getAgentById,
+		updateAgent,
+		deleteAgent,
+		type AgentDetailResponse,
+		type UpdateAgentPayload
+	} from '$lib/apis/agents';
 	import { mobile, showArchivedChats, showSidebar, user } from '$lib/stores';
 
 	import UserMenu from '$lib/components/layout/Sidebar/UserMenu.svelte';
@@ -21,6 +27,7 @@
 	let agent: AgentDetailResponse | null = null;
 	let showEditAgentModal = false;
 	let editLoading = false;
+	let deleteLoading = false;
 
 	const getAgentWorkspace = (currentAgent: AgentDetailResponse | null) => {
 		if (!currentAgent) return '';
@@ -88,6 +95,26 @@
 			toast.error(`${error}`);
 		} finally {
 			editLoading = false;
+		}
+	};
+
+	const deleteAgentHandler = async () => {
+		if (!agent || deleteLoading) return;
+
+		const confirmed = window.confirm(
+			`Delete agent "${agent.name ?? agent.agent_id}" and its files? This action cannot be undone.`
+		);
+		if (!confirmed) return;
+
+		deleteLoading = true;
+		try {
+			await deleteAgent(localStorage.token, agent.agent_id, true);
+			toast.success('Agent deleted successfully');
+			await goto('/agents');
+		} catch (error) {
+			toast.error(`${error}`);
+		} finally {
+			deleteLoading = false;
 		}
 	};
 
@@ -204,12 +231,25 @@
 							{/if}
 							<button
 								type="button"
-								class="rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-850"
+								class="rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-850"
 								on:click={() => {
 									showEditAgentModal = true;
 								}}
+								disabled={deleteLoading}
 							>
 								{$i18n.t('Edit Agent')}
+							</button>
+							<button
+								type="button"
+								class="rounded-xl border border-red-200 px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/40"
+								on:click={deleteAgentHandler}
+								disabled={deleteLoading || editLoading}
+							>
+								{#if deleteLoading}
+									<Spinner className="size-4" />
+								{:else}
+									Delete Agent
+								{/if}
 							</button>
 						</div>
 					</div>

@@ -44,7 +44,6 @@ export const getAgents = async (token: string = ''): Promise<AgentsListResponse>
 	return res;
 };
 
-
 export type AgentDetailResponse = AgentItem & {
 	identity: Record<string, unknown> | null;
 	files: Record<string, unknown>[] | null;
@@ -88,7 +87,6 @@ export const getAgentById = async (
 
 	return res;
 };
-
 
 export type CreateAgentPayload = {
 	name: string;
@@ -137,7 +135,6 @@ export const createAgent = async (
 	return res;
 };
 
-
 export type UpdateAgentPayload = {
 	name?: string;
 	workspace?: string;
@@ -166,6 +163,47 @@ export const updateAgent = async (
 			...(token && { authorization: `Bearer ${token}` })
 		},
 		body: JSON.stringify(body)
+	})
+		.then(async (res) => {
+			if (!res.ok) throw await res.json();
+			return res.json();
+		})
+		.catch((err) => {
+			error = err?.detail ?? err;
+			console.error(err);
+			return null;
+		});
+
+	if (error) {
+		throw error;
+	}
+
+	return res;
+};
+
+export type AgentDeleteResponse = {
+	deleted: boolean;
+	agent_id: string;
+	removed_bindings?: number | null;
+	openclaw_result?: Record<string, unknown> | null;
+};
+
+export const deleteAgent = async (
+	token: string = '',
+	agentId: string,
+	deleteFiles: boolean = true
+): Promise<AgentDeleteResponse> => {
+	let error = null;
+	const searchParams = new URLSearchParams();
+	searchParams.append('delete_files', deleteFiles ? 'true' : 'false');
+
+	const res = await fetch(`${WEBUI_API_BASE_URL}/agents/${agentId}?${searchParams.toString()}`, {
+		method: 'DELETE',
+		headers: {
+			Accept: 'application/json',
+			'Content-Type': 'application/json',
+			...(token && { authorization: `Bearer ${token}` })
+		}
 	})
 		.then(async (res) => {
 			if (!res.ok) throw await res.json();
