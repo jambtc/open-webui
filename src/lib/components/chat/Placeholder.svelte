@@ -38,6 +38,8 @@
 
 	export let atSelectedModel: Model | undefined;
 	export let selectedModels: [''];
+	export let selectedAgentId = '';
+	export let availableAgents = [];
 
 	export let history;
 
@@ -206,6 +208,8 @@
 			<div class="text-base font-normal @md:max-w-3xl w-full py-3 {atSelectedModel ? 'mt-2' : ''}">
 				<MessageInput
 					bind:this={messageInput}
+					bind:selectedAgentId
+					availableAgents={availableAgents}
 					{history}
 					{selectedModels}
 					bind:files

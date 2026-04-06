@@ -2902,6 +2902,7 @@ async def background_tasks_handler(ctx):
                         'messages': messages,
                         'message_id': metadata['message_id'],
                         'chat_id': metadata['chat_id'],
+                        'agent_id': form_data.get('agent_id'),
                     },
                     user,
                 )
@@ -2957,6 +2958,7 @@ async def background_tasks_handler(ctx):
                                 'model': message['model'],
                                 'messages': messages,
                                 'chat_id': metadata['chat_id'],
+                                'agent_id': form_data.get('agent_id'),
                             },
                             user,
                         )
@@ -3013,6 +3015,7 @@ async def background_tasks_handler(ctx):
                             'model': message['model'],
                             'messages': messages,
                             'chat_id': metadata['chat_id'],
+                            'agent_id': form_data.get('agent_id'),
                         },
                         user,
                     )

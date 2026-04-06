@@ -114,6 +114,8 @@
 
 	export let atSelectedModel: Model | undefined = undefined;
 	export let selectedModels: [''];
+	export let selectedAgentId = '';
+	export let availableAgents = [];
 
 	let selectedModelIds = [];
 	$: selectedModelIds = atSelectedModel !== undefined ? [atSelectedModel.id] : selectedModels;
@@ -1621,6 +1623,22 @@
 											<PlusAlt className="size-5.5" />
 										</div>
 									</InputMenu>
+
+									{#if availableAgents.length > 0}
+										<div class="ml-2 flex items-center gap-2 min-w-0">
+											<span class="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{$i18n.t('Agent')}</span>
+											<select
+												class="max-w-40 rounded-lg border border-gray-200 bg-white px-2 py-1 text-sm text-gray-700 outline-hidden focus:border-blue-500 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-100"
+												bind:value={selectedAgentId}
+											>
+												{#each availableAgents as agent (agent.agent_id)}
+													<option value={agent.agent_id}>
+														{agent.name ?? agent.agent_id}
+													</option>
+												{/each}
+											</select>
+										</div>
+									{/if}
 
 									{#if showWebSearchButton || showImageGenerationButton || showCodeInterpreterButton || showToolsButton || (toggleFilters && toggleFilters.length > 0)}
 										<div
