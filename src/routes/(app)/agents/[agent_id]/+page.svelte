@@ -84,6 +84,22 @@
 		return loadAgent();
 	};
 
+	const waitForDeletedAgent = async (agentId: string, attempts = 10, delayMs = 250) => {
+		for (let attempt = 0; attempt < attempts; attempt += 1) {
+			try {
+				await getAgentById(localStorage.token, agentId);
+				await new Promise((resolve) => setTimeout(resolve, delayMs));
+			} catch (error) {
+				if (`${error}`.toLowerCase().includes('not found')) {
+					return true;
+				}
+				throw error;
+			}
+		}
+
+		return false;
+	};
+
 	const updateAgentHandler = async (payload: UpdateAgentPayload) => {
 		editLoading = true;
 		try {
@@ -109,6 +125,7 @@
 		deleteLoading = true;
 		try {
 			await deleteAgent(localStorage.token, agent.agent_id, true);
+			await waitForDeletedAgent(agent.agent_id);
 			toast.success('Agent deleted successfully');
 			await goto('/agents');
 		} catch (error) {

@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { getContext, onMount } from 'svelte';
+	import { afterNavigate, goto } from '$app/navigation';
+	import { page } from '$app/stores';
 	import { toast } from 'svelte-sonner';
-	import { goto } from '$app/navigation';
 	import { createAgent, getAgentById, getAgents, type AgentItem, type CreateAgentPayload } from '$lib/apis/agents';
 	import { mobile, showArchivedChats, showSidebar, user } from '$lib/stores';
 
@@ -20,11 +21,25 @@
 	let defaultAgentId: string | null = null;
 	let showCreateAgentModal = false;
 	let createLoading = false;
+	let refreshing = false;
 
 	const loadAgents = async () => {
 		const res = await getAgents(localStorage.token);
 		agents = res?.items ?? [];
 		defaultAgentId = res?.default_agent_id ?? null;
+	};
+
+	const refreshAgents = async () => {
+		refreshing = true;
+		errorMessage = '';
+		try {
+			await loadAgents();
+		} catch (error) {
+			errorMessage = `${error}`;
+		} finally {
+			loaded = true;
+			refreshing = false;
+		}
 	};
 
 	const waitForAgentDetail = async (agentId: string, attempts: number = 10, delayMs: number = 250) => {
@@ -63,12 +78,12 @@
 	};
 
 	onMount(async () => {
-		try {
-			await loadAgents();
-		} catch (error) {
-			errorMessage = `${error}`;
-		} finally {
-			loaded = true;
+		await refreshAgents();
+	});
+
+	afterNavigate(async () => {
+		if ($page.url.pathname === '/agents' && !refreshing) {
+			await refreshAgents();
 		}
 	});
 </script>
@@ -199,6 +214,5 @@
 		{/if}
 	</div>
 </div>
-
 
 <CreateAgentModal bind:show={showCreateAgentModal} loading={createLoading} onSubmit={createAgentHandler} />
