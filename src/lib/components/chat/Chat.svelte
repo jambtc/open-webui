@@ -107,6 +107,7 @@
 	import Sidebar from '../icons/Sidebar.svelte';
 	import Image from '../common/Image.svelte';
 	import { getBanners } from '$lib/apis/configs';
+import { getAgents, type AgentItem } from '$lib/apis/agents';
 
 	export let chatIdProp = '';
 
@@ -134,6 +135,9 @@
 	let eventCallback = null;
 
 	let selectedModels = [''];
+	let selectedAgentId = 'main';
+	let availableAgents: AgentItem[] = [];
+	let defaultAgentId: string | null = null;
 	let atSelectedModel: Model | undefined;
 	let selectedModelIds = [];
 	$: if (atSelectedModel !== undefined) {
@@ -178,6 +182,8 @@
 
 	const navigateHandler = async () => {
 		loading = true;
+
+		await loadAgents().catch((e) => console.error('Failed to load agents:', e));
 
 		prompt = '';
 		messageInput?.setText('');
@@ -249,6 +255,10 @@
 		saveSessionSelectedModels();
 	}
 
+	$: if (selectedAgentId) {
+		saveSessionSelectedAgentId();
+	}
+
 	const saveSessionSelectedModels = () => {
 		const selectedModelsString = JSON.stringify(selectedModels);
 		if (
@@ -260,6 +270,28 @@
 		}
 		sessionStorage.selectedModels = selectedModelsString;
 		console.log('saveSessionSelectedModels', selectedModels, sessionStorage.selectedModels);
+	};
+
+	const saveSessionSelectedAgentId = () => {
+		if (!selectedAgentId || sessionStorage.selectedAgentId === selectedAgentId) {
+			return;
+		}
+		sessionStorage.selectedAgentId = selectedAgentId;
+	};
+
+	const loadAgents = async () => {
+		const res = await getAgents(localStorage.token);
+		availableAgents = res?.items ?? [];
+		defaultAgentId = res?.default_agent_id ?? null;
+
+		if (availableAgents.length > 0) {
+			const availableAgentIds = availableAgents.map((agent) => agent.agent_id);
+			if (!selectedAgentId || !availableAgentIds.includes(selectedAgentId)) {
+				selectedAgentId = defaultAgentId ?? availableAgents[0].agent_id;
+			}
+		} else if (!selectedAgentId) {
+			selectedAgentId = defaultAgentId ?? 'main';
+		}
 	};
 
 	let oldSelectedModelIds = [''];
@@ -726,6 +758,8 @@
 		);
 
 		const init = async () => {
+			await loadAgents().catch((e) => console.error('Failed to load agents:', e));
+
 			if (!chatIdProp) {
 				loading = false;
 				await tick();
@@ -1132,6 +1166,27 @@
 			}
 		}
 
+		const urlAgent = ($page.url.searchParams.get('agent') || '').trim();
+		if (urlAgent) {
+			selectedAgentId = urlAgent;
+		} else if (sessionStorage.selectedAgentId) {
+			selectedAgentId = sessionStorage.selectedAgentId;
+			sessionStorage.removeItem('selectedAgentId');
+		} else if (defaultAgentId) {
+			selectedAgentId = defaultAgentId;
+		} else if (availableAgents.length > 0) {
+			selectedAgentId = availableAgents[0].agent_id;
+		} else {
+			selectedAgentId = 'main';
+		}
+
+		if (availableAgents.length > 0) {
+			const availableAgentIds = availableAgents.map((agent) => agent.agent_id);
+			if (!availableAgentIds.includes(selectedAgentId)) {
+				selectedAgentId = defaultAgentId ?? availableAgents[0].agent_id;
+			}
+		}
+
 		if ($mobile) {
 			await showControls.set(false);
 		}
@@ -1258,6 +1313,14 @@
 
 				oldSelectedModelIds = structuredClone(selectedModels);
 
+				selectedAgentId = chatContent?.agent_id ?? defaultAgentId ?? availableAgents[0]?.agent_id ?? 'main';
+				if (availableAgents.length > 0) {
+					const availableAgentIds = availableAgents.map((agent) => agent.agent_id);
+					if (!availableAgentIds.includes(selectedAgentId)) {
+						selectedAgentId = defaultAgentId ?? availableAgents[0].agent_id;
+					}
+				}
+
 				history =
 					(chatContent?.history ?? undefined) !== undefined
 						? chatContent.history
@@ -1380,6 +1443,7 @@
 			if (!$temporaryChatEnabled) {
 				chat = await updateChatById(localStorage.token, _chatId, {
 					models: selectedModels,
+					agent_id: selectedAgentId,
 					messages: messages,
 					history: history,
 					params: params,
@@ -1435,6 +1499,7 @@
 			if (!$temporaryChatEnabled) {
 				chat = await updateChatById(localStorage.token, _chatId, {
 					models: selectedModels,
+					agent_id: selectedAgentId,
 					messages: messages,
 					history: history,
 					params: params,
@@ -2238,6 +2303,7 @@
 				},
 
 				files: (files?.length ?? 0) > 0 ? files : undefined,
+				agent_id: selectedAgentId,
 
 				filter_ids: selectedFilterIds.length > 0 ? selectedFilterIds : undefined,
 				tool_ids: toolIds.length > 0 ? toolIds : undefined,
@@ -2572,6 +2638,7 @@
 					id: _chatId,
 					title: $i18n.t('New Chat'),
 					models: selectedModels,
+						agent_id: selectedAgentId,
 					system: $settings.system ?? undefined,
 					params: params,
 					history: history,
@@ -2607,6 +2674,7 @@
 			if (!$temporaryChatEnabled) {
 				chat = await updateChatById(localStorage.token, _chatId, {
 					models: selectedModels,
+					agent_id: selectedAgentId,
 					history: history,
 					messages: createMessagesList(history, history.currentId),
 					params: params,
@@ -2778,6 +2846,7 @@
 										id: uuidv4(),
 										title: title.length > 50 ? `${title.slice(0, 50)}...` : title,
 										models: selectedModels,
+										agent_id: selectedAgentId,
 										params: params,
 										history: history,
 										messages: messages,
@@ -2841,6 +2910,8 @@
 
 							<div class=" pb-2 {dragged ? 'z-0' : 'z-10'}">
 								<MessageInput
+						bind:selectedAgentId
+						availableAgents={availableAgents}
 									bind:this={messageInput}
 									{history}
 									{taskIds}
@@ -2928,6 +2999,8 @@
 								<Placeholder
 									{history}
 									{selectedModels}
+									bind:selectedAgentId
+									availableAgents={availableAgents}
 									bind:messageInput
 									bind:files
 									bind:prompt
