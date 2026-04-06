@@ -1400,6 +1400,7 @@ import { getAgents, type AgentItem } from '$lib/apis/agents';
 	const chatCompletedHandler = async (_chatId, modelId, responseMessageId, messages) => {
 		const res = await chatCompleted(localStorage.token, {
 			model: modelId,
+			agent_id: selectedAgentId,
 			messages: messages.map((m) => ({
 				id: m.id,
 				role: m.role,

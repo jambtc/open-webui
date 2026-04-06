@@ -164,6 +164,7 @@ type ChatCompletedForm = {
 	messages: string[];
 	chat_id: string;
 	session_id: string;
+	agent_id?: string;
 };
 
 export const chatCompleted = async (token: string, body: ChatCompletedForm) => {
