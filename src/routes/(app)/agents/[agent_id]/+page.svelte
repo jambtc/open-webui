@@ -10,6 +10,8 @@
 		deleteAgent,
 		getAgentKnowledgeTree,
 		createAgentKnowledgeFolder,
+		uploadAgentKnowledgeFile,
+		deleteAgentKnowledgeFile,
 		type AgentDetailResponse,
 		type AgentKnowledgeTreeResponse,
 		type UpdateAgentPayload
@@ -32,6 +34,7 @@
 	let knowledgeLoading = false;
 	let knowledgeError = '';
 	let currentKnowledgePath = '';
+	let knowledgeFileInput: HTMLInputElement | null = null;
 	let showEditAgentModal = false;
 	let editLoading = false;
 	let deleteLoading = false;
@@ -98,6 +101,40 @@
 		try {
 			await createAgentKnowledgeFolder(localStorage.token, $page.params.agent_id, nextPath);
 			toast.success('Folder created successfully');
+			await loadKnowledgeTree(currentKnowledgePath);
+		} catch (error) {
+			toast.error(`${error}`);
+		}
+	};
+
+
+	const triggerKnowledgeUpload = () => {
+		knowledgeFileInput?.click();
+	};
+
+	const uploadKnowledgeFileHandler = async (event: Event) => {
+		const input = event.currentTarget as HTMLInputElement;
+		const file = input.files?.[0];
+		if (!file) return;
+
+		try {
+			await uploadAgentKnowledgeFile(localStorage.token, $page.params.agent_id, file, currentKnowledgePath);
+			toast.success('File uploaded successfully');
+			await loadKnowledgeTree(currentKnowledgePath);
+		} catch (error) {
+			toast.error(`${error}`);
+		} finally {
+			input.value = '';
+		}
+	};
+
+	const deleteKnowledgeFileHandler = async (itemPath: string, itemName: string) => {
+		const confirmed = window.confirm(`Delete file "${itemName}" from knowledge?`);
+		if (!confirmed) return;
+
+		try {
+			await deleteAgentKnowledgeFile(localStorage.token, $page.params.agent_id, itemPath);
+			toast.success('File deleted successfully');
 			await loadKnowledgeTree(currentKnowledgePath);
 		} catch (error) {
 			toast.error(`${error}`);
@@ -382,6 +419,15 @@
 							<div class="mt-1 text-xs text-gray-500 dark:text-gray-400">Read-only tree for /memory/knowledge</div>
 						</div>
 						<div class="flex items-center gap-2">
+							<input bind:this={knowledgeFileInput} type="file" class="hidden" on:change={uploadKnowledgeFileHandler} />
+							<button
+								type="button"
+								class="rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-850"
+								on:click={triggerKnowledgeUpload}
+								disabled={knowledgeLoading}
+							>
+								Upload File
+							</button>
 							<button
 								type="button"
 								class="rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-850"
@@ -444,16 +490,17 @@
 						</div>
 					{:else if knowledgeTree}
 						<div class="mt-4 overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800">
-							<div class="grid grid-cols-[minmax(0,1.6fr)_120px_180px] gap-3 border-b border-gray-200 bg-gray-50 px-4 py-2 text-xs font-medium uppercase tracking-wide text-gray-500 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-400">
+							<div class="grid grid-cols-[minmax(0,1.6fr)_120px_180px_120px] gap-3 border-b border-gray-200 bg-gray-50 px-4 py-2 text-xs font-medium uppercase tracking-wide text-gray-500 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-400">
 								<div>Name</div>
 								<div>Size</div>
 								<div>Updated</div>
+								<div>Actions</div>
 							</div>
 							{#if knowledgeTree.items.length === 0}
 								<div class="px-4 py-6 text-sm text-gray-500 dark:text-gray-400">No knowledge files or folders in this path.</div>
 							{:else}
 								{#each knowledgeTree.items as item (item.path)}
-									<div class="grid grid-cols-[minmax(0,1.6fr)_120px_180px] gap-3 border-t border-gray-100 px-4 py-3 text-sm dark:border-gray-850">
+									<div class="grid grid-cols-[minmax(0,1.6fr)_120px_180px_120px] gap-3 border-t border-gray-100 px-4 py-3 text-sm dark:border-gray-850">
 										<div class="min-w-0">
 											{#if item.kind === 'folder'}
 												<button
@@ -470,6 +517,19 @@
 										</div>
 										<div class="text-gray-600 dark:text-gray-300">{item.kind === 'file' ? formatBytes(item.size_bytes) : '—'}</div>
 										<div class="text-gray-600 dark:text-gray-300">{formatKnowledgeDate(item.updated_at)}</div>
+										<div class="flex items-start justify-start">
+											{#if item.kind === 'file'}
+												<button
+													type="button"
+													class="rounded-lg border border-red-200 px-2 py-1 text-xs font-medium text-red-700 transition hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/40"
+													on:click={() => deleteKnowledgeFileHandler(item.path, item.name)}
+												>
+													Delete
+												</button>
+											{:else}
+												<span class="text-gray-400">—</span>
+											{/if}
+										</div>
 									</div>
 								{/each}
 							{/if}

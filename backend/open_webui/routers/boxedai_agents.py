@@ -3,7 +3,7 @@ import os
 from urllib.parse import urlencode
 
 import aiohttp
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse
 
 from open_webui.utils.auth import get_verified_user
@@ -155,6 +155,75 @@ async def create_agent_knowledge_folder(agent_id: str, request: Request, user=De
     except Exception as exc:
         log.exception('Agent knowledge folder create proxy upstream error: %s', exc)
         raise HTTPException(status_code=502, detail='Agent knowledge folder create upstream error')
+
+
+@router.post('/agents/{agent_id}/knowledge/files/upload')
+async def upload_agent_knowledge_file(
+    agent_id: str,
+    request: Request,
+    file: UploadFile = File(...),
+    path: str = Form(default=''),
+    filename: str | None = Form(default=None),
+    overwrite: bool = Form(default=False),
+    user=Depends(get_verified_user),
+):
+    if not OPENCLAW_OPENAI_PROXY:
+        raise HTTPException(status_code=500, detail='OPENCLAW_OPENAI_PROXY is not configured')
+
+    headers = {'Accept': 'application/json'}
+    authorization = request.headers.get('authorization')
+    if authorization:
+        headers['authorization'] = authorization
+
+    form = aiohttp.FormData()
+    form.add_field('file', await file.read(), filename=(filename or file.filename or 'upload'), content_type=file.content_type or 'application/octet-stream')
+    form.add_field('path', path or '')
+    if filename:
+        form.add_field('filename', filename)
+    form.add_field('overwrite', 'true' if overwrite else 'false')
+
+    upstream_url = f"{OPENCLAW_OPENAI_PROXY}/api/v1/agents/{agent_id}/knowledge/files/upload"
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(upstream_url, data=form, headers=headers) as response:
+                payload = await response.json(content_type=None)
+                return JSONResponse(content=payload, status_code=response.status)
+    except aiohttp.ClientResponseError as exc:
+        log.exception('Agent knowledge upload proxy upstream response error: %s', exc)
+        raise HTTPException(status_code=502, detail='Agent knowledge upload upstream response error')
+    except Exception as exc:
+        log.exception('Agent knowledge upload proxy upstream error: %s', exc)
+        raise HTTPException(status_code=502, detail='Agent knowledge upload upstream error')
+
+
+@router.delete('/agents/{agent_id}/knowledge/files')
+async def delete_agent_knowledge_file(agent_id: str, request: Request, user=Depends(get_verified_user)):
+    if not OPENCLAW_OPENAI_PROXY:
+        raise HTTPException(status_code=500, detail='OPENCLAW_OPENAI_PROXY is not configured')
+
+    headers = {'Accept': 'application/json'}
+    authorization = request.headers.get('authorization')
+    if authorization:
+        headers['authorization'] = authorization
+
+    item_path = request.query_params.get('path', '')
+    if not item_path:
+        raise HTTPException(status_code=422, detail='path query parameter is required')
+
+    upstream_url = f"{OPENCLAW_OPENAI_PROXY}/api/v1/agents/{agent_id}/knowledge/files"
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.delete(upstream_url, headers=headers, params={'path': item_path}) as response:
+                payload = await response.json(content_type=None)
+                return JSONResponse(content=payload, status_code=response.status)
+    except aiohttp.ClientResponseError as exc:
+        log.exception('Agent knowledge file delete proxy upstream response error: %s', exc)
+        raise HTTPException(status_code=502, detail='Agent knowledge file delete upstream response error')
+    except Exception as exc:
+        log.exception('Agent knowledge file delete proxy upstream error: %s', exc)
+        raise HTTPException(status_code=502, detail='Agent knowledge file delete upstream error')
 
 
 @router.patch('/agents/{agent_id}')
