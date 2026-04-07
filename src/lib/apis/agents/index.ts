@@ -221,3 +221,95 @@ export const deleteAgent = async (
 
 	return res;
 };
+
+export type AgentKnowledgeTreeItem = {
+	path: string;
+	name: string;
+	kind: 'file' | 'folder' | string;
+	size_bytes: number | null;
+	updated_at: string | null;
+};
+
+export type AgentKnowledgeTreeResponse = {
+	agent_id: string;
+	workspace: string;
+	root: string;
+	path: string;
+	items: AgentKnowledgeTreeItem[];
+};
+
+export const getAgentKnowledgeTree = async (
+	token: string = '',
+	agentId: string,
+	path: string = ''
+): Promise<AgentKnowledgeTreeResponse> => {
+	let error = null;
+	const searchParams = new URLSearchParams();
+	if (path) searchParams.append('path', path);
+
+	const res = await fetch(
+		`${WEBUI_API_BASE_URL}/agents/${agentId}/knowledge/tree${searchParams.toString() ? `?${searchParams.toString()}` : ''}`,
+		{
+			method: 'GET',
+			headers: {
+				Accept: 'application/json',
+				'Content-Type': 'application/json',
+				...(token && { authorization: `Bearer ${token}` })
+			}
+		}
+	)
+		.then(async (res) => {
+			if (!res.ok) throw await res.json();
+			return res.json();
+		})
+		.catch((err) => {
+			error = err?.detail ?? err;
+			console.error(err);
+			return null;
+		});
+
+	if (error) {
+		throw error;
+	}
+
+	return res;
+};
+
+export type AgentKnowledgeFolderMutationResponse = {
+	ok: boolean;
+	agent_id: string;
+	path: string;
+};
+
+export const createAgentKnowledgeFolder = async (
+	token: string = '',
+	agentId: string,
+	path: string
+): Promise<AgentKnowledgeFolderMutationResponse> => {
+	let error = null;
+
+	const res = await fetch(`${WEBUI_API_BASE_URL}/agents/${agentId}/knowledge/folders`, {
+		method: 'POST',
+		headers: {
+			Accept: 'application/json',
+			'Content-Type': 'application/json',
+			...(token && { authorization: `Bearer ${token}` })
+		},
+		body: JSON.stringify({ path })
+	})
+		.then(async (res) => {
+			if (!res.ok) throw await res.json();
+			return res.json();
+		})
+		.catch((err) => {
+			error = err?.detail ?? err;
+			console.error(err);
+			return null;
+		});
+
+	if (error) {
+		throw error;
+	}
+
+	return res;
+};

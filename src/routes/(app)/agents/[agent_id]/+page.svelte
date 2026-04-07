@@ -8,7 +8,10 @@
 		getAgentById,
 		updateAgent,
 		deleteAgent,
+		getAgentKnowledgeTree,
+		createAgentKnowledgeFolder,
 		type AgentDetailResponse,
+		type AgentKnowledgeTreeResponse,
 		type UpdateAgentPayload
 	} from '$lib/apis/agents';
 	import { mobile, showArchivedChats, showSidebar, user } from '$lib/stores';
@@ -25,6 +28,10 @@
 	let loaded = false;
 	let errorMessage = '';
 	let agent: AgentDetailResponse | null = null;
+	let knowledgeTree: AgentKnowledgeTreeResponse | null = null;
+	let knowledgeLoading = false;
+	let knowledgeError = '';
+	let currentKnowledgePath = '';
 	let showEditAgentModal = false;
 	let editLoading = false;
 	let deleteLoading = false;
@@ -58,6 +65,72 @@
 		errorMessage = '';
 		agent = await getAgentById(localStorage.token, $page.params.agent_id);
 		return agent;
+	};
+
+	const loadKnowledgeTree = async (path = currentKnowledgePath) => {
+		knowledgeLoading = true;
+		knowledgeError = '';
+		try {
+			knowledgeTree = await getAgentKnowledgeTree(localStorage.token, $page.params.agent_id, path);
+			currentKnowledgePath = knowledgeTree?.path ?? path;
+		} catch (error) {
+			knowledgeError = `${error}`;
+		} finally {
+			knowledgeLoading = false;
+		}
+	};
+
+	const openKnowledgeFolder = async (path: string) => {
+		await loadKnowledgeTree(path);
+	};
+
+	const createKnowledgeFolderHandler = async () => {
+		const base = currentKnowledgePath ? `${currentKnowledgePath}/` : '';
+		const value = window.prompt('New folder path', base);
+		if (value === null) return;
+
+		const nextPath = value.trim().replace(/^\/+|\/+$/g, '');
+		if (!nextPath) {
+			toast.error('Folder path is required');
+			return;
+		}
+
+		try {
+			await createAgentKnowledgeFolder(localStorage.token, $page.params.agent_id, nextPath);
+			toast.success('Folder created successfully');
+			await loadKnowledgeTree(currentKnowledgePath);
+		} catch (error) {
+			toast.error(`${error}`);
+		}
+	};
+
+	const knowledgeBreadcrumbs = (path: string) => {
+		if (!path) return [];
+		const parts = path.split('/').filter(Boolean);
+		return parts.map((part, idx) => ({
+			label: part,
+			path: parts.slice(0, idx + 1).join('/')
+		}));
+	};
+
+	const formatKnowledgeDate = (value: string | null) => {
+		if (!value) return 'n/a';
+		const date = new Date(value);
+		if (Number.isNaN(date.getTime())) return value;
+		return date.toLocaleString();
+	};
+
+	const formatBytes = (value: number | null) => {
+		if (value === null || value === undefined) return 'n/a';
+		if (value < 1024) return `${value} B`;
+		const units = ['KB', 'MB', 'GB', 'TB'];
+		let size = value / 1024;
+		let idx = 0;
+		while (size >= 1024 && idx < units.length - 1) {
+			size /= 1024;
+			idx += 1;
+		}
+		return `${size.toFixed(size >= 10 ? 0 : 1)} ${units[idx]}`;
 	};
 
 	const waitForUpdatedAgent = async (payload: UpdateAgentPayload, maxAttempts = 8, delayMs = 250) => {
@@ -138,6 +211,7 @@
 	onMount(async () => {
 		try {
 			await loadAgent();
+			await loadKnowledgeTree('');
 		} catch (error) {
 			errorMessage = `${error}`;
 		} finally {
@@ -299,6 +373,108 @@
 							<div class="mt-3 text-sm text-gray-500 dark:text-gray-400">No identity payload available.</div>
 						{/if}
 					</div>
+				</div>
+
+				<div class="rounded-2xl border border-gray-200 bg-white px-5 py-4 dark:border-gray-800 dark:bg-gray-900">
+					<div class="flex items-center justify-between gap-3">
+						<div>
+							<div class="text-sm font-medium text-gray-900 dark:text-gray-100">Knowledge</div>
+							<div class="mt-1 text-xs text-gray-500 dark:text-gray-400">Read-only tree for /memory/knowledge</div>
+						</div>
+						<div class="flex items-center gap-2">
+							<button
+								type="button"
+								class="rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-850"
+								on:click={createKnowledgeFolderHandler}
+								disabled={knowledgeLoading}
+							>
+								New Folder
+							</button>
+							<button
+								type="button"
+								class="rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-850"
+								on:click={() => loadKnowledgeTree(currentKnowledgePath)}
+								disabled={knowledgeLoading}
+							>
+								Refresh
+							</button>
+						</div>
+					</div>
+
+					<div class="mt-3 space-y-2 text-sm">
+						<div>
+							<span class="text-gray-500 dark:text-gray-400">Workspace:</span>
+							<span class="ml-2 text-gray-900 dark:text-gray-100">{(knowledgeTree?.workspace ?? getAgentWorkspace(agent)) || 'n/a'}</span>
+						</div>
+						<div>
+							<span class="text-gray-500 dark:text-gray-400">Root:</span>
+							<span class="ml-2 font-mono text-xs text-gray-900 dark:text-gray-100">{knowledgeTree?.root ?? 'n/a'}</span>
+						</div>
+					</div>
+
+					<div class="mt-4 flex flex-wrap items-center gap-2 text-sm">
+						<button
+							type="button"
+							class="rounded-lg border border-gray-200 px-2 py-1 text-gray-700 transition hover:bg-gray-50 disabled:cursor-default disabled:opacity-60 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-850"
+							on:click={() => openKnowledgeFolder('')}
+							disabled={!currentKnowledgePath || knowledgeLoading}
+						>
+							root
+						</button>
+						{#each knowledgeBreadcrumbs(currentKnowledgePath) as crumb}
+							<span class="text-gray-400">/</span>
+							<button
+								type="button"
+								class="rounded-lg border border-gray-200 px-2 py-1 text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-850"
+								on:click={() => openKnowledgeFolder(crumb.path)}
+								disabled={knowledgeLoading}
+							>
+								{crumb.label}
+							</button>
+						{/each}
+					</div>
+
+					{#if knowledgeLoading}
+						<div class="mt-4 flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+							<Spinner className="size-4" /> Loading knowledge tree...
+						</div>
+					{:else if knowledgeError}
+						<div class="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+							{knowledgeError}
+						</div>
+					{:else if knowledgeTree}
+						<div class="mt-4 overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800">
+							<div class="grid grid-cols-[minmax(0,1.6fr)_120px_180px] gap-3 border-b border-gray-200 bg-gray-50 px-4 py-2 text-xs font-medium uppercase tracking-wide text-gray-500 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-400">
+								<div>Name</div>
+								<div>Size</div>
+								<div>Updated</div>
+							</div>
+							{#if knowledgeTree.items.length === 0}
+								<div class="px-4 py-6 text-sm text-gray-500 dark:text-gray-400">No knowledge files or folders in this path.</div>
+							{:else}
+								{#each knowledgeTree.items as item (item.path)}
+									<div class="grid grid-cols-[minmax(0,1.6fr)_120px_180px] gap-3 border-t border-gray-100 px-4 py-3 text-sm dark:border-gray-850">
+										<div class="min-w-0">
+											{#if item.kind === 'folder'}
+												<button
+													type="button"
+													class="font-medium text-blue-700 transition hover:underline dark:text-blue-300"
+													on:click={() => openKnowledgeFolder(item.path)}
+												>
+													📁 {item.name}
+												</button>
+											{:else}
+												<div class="text-gray-900 dark:text-gray-100">📄 {item.name}</div>
+											{/if}
+											<div class="mt-1 font-mono text-xs text-gray-500 dark:text-gray-400">{item.path}</div>
+										</div>
+										<div class="text-gray-600 dark:text-gray-300">{item.kind === 'file' ? formatBytes(item.size_bytes) : '—'}</div>
+										<div class="text-gray-600 dark:text-gray-300">{formatKnowledgeDate(item.updated_at)}</div>
+									</div>
+								{/each}
+							{/if}
+						</div>
+					{/if}
 				</div>
 
 				{#if agent.warnings?.length}
