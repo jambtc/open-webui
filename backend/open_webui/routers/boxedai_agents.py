@@ -6,7 +6,7 @@ import aiohttp
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, Response
 
-from open_webui.utils.auth import get_verified_user
+from open_webui.utils.auth import get_admin_user, get_verified_user
 
 log = logging.getLogger(__name__)
 
@@ -15,7 +15,7 @@ OPENCLAW_OPENAI_PROXY = os.environ.get('OPENCLAW_OPENAI_PROXY', '').rstrip('/')
 
 
 @router.post('/agents')
-async def create_agent(request: Request, user=Depends(get_verified_user)):
+async def create_agent(request: Request, user=Depends(get_admin_user)):
     if not OPENCLAW_OPENAI_PROXY:
         raise HTTPException(status_code=500, detail='OPENCLAW_OPENAI_PROXY is not configured')
 
@@ -70,7 +70,7 @@ async def get_agents(request: Request, user=Depends(get_verified_user)):
 
 
 @router.get('/agents/{agent_id}')
-async def get_agent_detail(agent_id: str, request: Request, user=Depends(get_verified_user)):
+async def get_agent_detail(agent_id: str, request: Request, user=Depends(get_admin_user)):
     if not OPENCLAW_OPENAI_PROXY:
         raise HTTPException(status_code=500, detail='OPENCLAW_OPENAI_PROXY is not configured')
 
@@ -99,7 +99,7 @@ async def get_agent_detail(agent_id: str, request: Request, user=Depends(get_ver
 
 
 @router.get('/agents/{agent_id}/knowledge/tree')
-async def get_agent_knowledge_tree(agent_id: str, request: Request, user=Depends(get_verified_user)):
+async def get_agent_knowledge_tree(agent_id: str, request: Request, user=Depends(get_admin_user)):
     if not OPENCLAW_OPENAI_PROXY:
         raise HTTPException(status_code=500, detail='OPENCLAW_OPENAI_PROXY is not configured')
 
@@ -128,7 +128,7 @@ async def get_agent_knowledge_tree(agent_id: str, request: Request, user=Depends
 
 
 @router.post('/agents/{agent_id}/knowledge/folders')
-async def create_agent_knowledge_folder(agent_id: str, request: Request, user=Depends(get_verified_user)):
+async def create_agent_knowledge_folder(agent_id: str, request: Request, user=Depends(get_admin_user)):
     if not OPENCLAW_OPENAI_PROXY:
         raise HTTPException(status_code=500, detail='OPENCLAW_OPENAI_PROXY is not configured')
 
@@ -158,7 +158,7 @@ async def create_agent_knowledge_folder(agent_id: str, request: Request, user=De
 
 
 @router.delete('/agents/{agent_id}/knowledge/folders')
-async def delete_agent_knowledge_folder(agent_id: str, request: Request, user=Depends(get_verified_user)):
+async def delete_agent_knowledge_folder(agent_id: str, request: Request, user=Depends(get_admin_user)):
     if not OPENCLAW_OPENAI_PROXY:
         raise HTTPException(status_code=500, detail='OPENCLAW_OPENAI_PROXY is not configured')
 
@@ -200,7 +200,7 @@ async def upload_agent_knowledge_file(
     path: str = Form(default=''),
     filename: str | None = Form(default=None),
     overwrite: bool = Form(default=False),
-    user=Depends(get_verified_user),
+    user=Depends(get_admin_user),
 ):
     if not OPENCLAW_OPENAI_PROXY:
         raise HTTPException(status_code=500, detail='OPENCLAW_OPENAI_PROXY is not configured')
@@ -233,7 +233,7 @@ async def upload_agent_knowledge_file(
 
 
 @router.delete('/agents/{agent_id}/knowledge/files')
-async def delete_agent_knowledge_file(agent_id: str, request: Request, user=Depends(get_verified_user)):
+async def delete_agent_knowledge_file(agent_id: str, request: Request, user=Depends(get_admin_user)):
     if not OPENCLAW_OPENAI_PROXY:
         raise HTTPException(status_code=500, detail='OPENCLAW_OPENAI_PROXY is not configured')
 
@@ -262,7 +262,7 @@ async def delete_agent_knowledge_file(agent_id: str, request: Request, user=Depe
 
 
 @router.get('/agents/{agent_id}/knowledge/files/content')
-async def get_agent_knowledge_file_content(agent_id: str, request: Request, user=Depends(get_verified_user)):
+async def get_agent_knowledge_file_content(agent_id: str, request: Request, user=Depends(get_admin_user)):
     if not OPENCLAW_OPENAI_PROXY:
         raise HTTPException(status_code=500, detail='OPENCLAW_OPENAI_PROXY is not configured')
 
@@ -291,7 +291,7 @@ async def get_agent_knowledge_file_content(agent_id: str, request: Request, user
 
 
 @router.get('/agents/{agent_id}/knowledge/files/download')
-async def download_agent_knowledge_file(agent_id: str, request: Request, user=Depends(get_verified_user)):
+async def download_agent_knowledge_file(agent_id: str, request: Request, user=Depends(get_admin_user)):
     if not OPENCLAW_OPENAI_PROXY:
         raise HTTPException(status_code=500, detail='OPENCLAW_OPENAI_PROXY is not configured')
 
@@ -329,7 +329,7 @@ async def download_agent_knowledge_file(agent_id: str, request: Request, user=De
 
 
 @router.patch('/agents/{agent_id}')
-async def update_agent(agent_id: str, request: Request, user=Depends(get_verified_user)):
+async def update_agent(agent_id: str, request: Request, user=Depends(get_admin_user)):
     if not OPENCLAW_OPENAI_PROXY:
         raise HTTPException(status_code=500, detail='OPENCLAW_OPENAI_PROXY is not configured')
 
@@ -359,7 +359,7 @@ async def update_agent(agent_id: str, request: Request, user=Depends(get_verifie
 
 
 @router.delete('/agents/{agent_id}')
-async def delete_agent(agent_id: str, request: Request, user=Depends(get_verified_user)):
+async def delete_agent(agent_id: str, request: Request, user=Depends(get_admin_user)):
     if not OPENCLAW_OPENAI_PROXY:
         raise HTTPException(status_code=500, detail='OPENCLAW_OPENAI_PROXY is not configured')
 

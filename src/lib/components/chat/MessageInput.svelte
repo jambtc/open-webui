@@ -1640,6 +1640,12 @@
 										</div>
 									{/if}
 
+									<div class="ml-2 min-w-0 hidden @xl:block">
+										<div class="truncate text-[11px] text-gray-400 dark:text-gray-500">
+											{$i18n.t('Chat uploads are temporary for this conversation.')}
+										</div>
+									</div>
+
 									{#if showWebSearchButton || showImageGenerationButton || showCodeInterpreterButton || showToolsButton || (toggleFilters && toggleFilters.length > 0)}
 										<div
 											class="flex self-center w-[1px] h-4 mx-1 bg-gray-200/50 dark:bg-gray-800/50"

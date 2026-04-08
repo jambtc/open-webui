@@ -78,10 +78,17 @@
 	};
 
 	onMount(async () => {
+		if ($user?.role !== 'admin') {
+			await goto('/');
+			return;
+		}
 		await refreshAgents();
 	});
 
 	afterNavigate(async () => {
+		if ($user?.role !== 'admin') {
+			return;
+		}
 		if ($page.url.pathname === '/agents' && !refreshing) {
 			await refreshAgents();
 		}
