@@ -4,7 +4,7 @@ from urllib.parse import urlencode
 
 import aiohttp
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from open_webui.utils.auth import get_verified_user
 
@@ -157,6 +157,41 @@ async def create_agent_knowledge_folder(agent_id: str, request: Request, user=De
         raise HTTPException(status_code=502, detail='Agent knowledge folder create upstream error')
 
 
+@router.delete('/agents/{agent_id}/knowledge/folders')
+async def delete_agent_knowledge_folder(agent_id: str, request: Request, user=Depends(get_verified_user)):
+    if not OPENCLAW_OPENAI_PROXY:
+        raise HTTPException(status_code=500, detail='OPENCLAW_OPENAI_PROXY is not configured')
+
+    headers = {'Accept': 'application/json'}
+    authorization = request.headers.get('authorization')
+    if authorization:
+        headers['authorization'] = authorization
+
+    item_path = request.query_params.get('path', '')
+    if not item_path:
+        raise HTTPException(status_code=422, detail='path query parameter is required')
+    recursive_param = request.query_params.get('recursive', 'true').strip().lower()
+    recursive = recursive_param not in {'false', '0', 'no'}
+
+    upstream_url = f"{OPENCLAW_OPENAI_PROXY}/api/v1/agents/{agent_id}/knowledge/folders"
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.delete(
+                upstream_url,
+                headers=headers,
+                params={'path': item_path, 'recursive': 'true' if recursive else 'false'},
+            ) as response:
+                payload = await response.json(content_type=None)
+                return JSONResponse(content=payload, status_code=response.status)
+    except aiohttp.ClientResponseError as exc:
+        log.exception('Agent knowledge folder delete proxy upstream response error: %s', exc)
+        raise HTTPException(status_code=502, detail='Agent knowledge folder delete upstream response error')
+    except Exception as exc:
+        log.exception('Agent knowledge folder delete proxy upstream error: %s', exc)
+        raise HTTPException(status_code=502, detail='Agent knowledge folder delete upstream error')
+
+
 @router.post('/agents/{agent_id}/knowledge/files/upload')
 async def upload_agent_knowledge_file(
     agent_id: str,
@@ -224,6 +259,73 @@ async def delete_agent_knowledge_file(agent_id: str, request: Request, user=Depe
     except Exception as exc:
         log.exception('Agent knowledge file delete proxy upstream error: %s', exc)
         raise HTTPException(status_code=502, detail='Agent knowledge file delete upstream error')
+
+
+@router.get('/agents/{agent_id}/knowledge/files/content')
+async def get_agent_knowledge_file_content(agent_id: str, request: Request, user=Depends(get_verified_user)):
+    if not OPENCLAW_OPENAI_PROXY:
+        raise HTTPException(status_code=500, detail='OPENCLAW_OPENAI_PROXY is not configured')
+
+    headers = {'Accept': 'application/json'}
+    authorization = request.headers.get('authorization')
+    if authorization:
+        headers['authorization'] = authorization
+
+    item_path = request.query_params.get('path', '')
+    if not item_path:
+        raise HTTPException(status_code=422, detail='path query parameter is required')
+
+    upstream_url = f"{OPENCLAW_OPENAI_PROXY}/api/v1/agents/{agent_id}/knowledge/files/content"
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(upstream_url, headers=headers, params={'path': item_path}) as response:
+                payload = await response.json(content_type=None)
+                return JSONResponse(content=payload, status_code=response.status)
+    except aiohttp.ClientResponseError as exc:
+        log.exception('Agent knowledge file content proxy upstream response error: %s', exc)
+        raise HTTPException(status_code=502, detail='Agent knowledge file content upstream response error')
+    except Exception as exc:
+        log.exception('Agent knowledge file content proxy upstream error: %s', exc)
+        raise HTTPException(status_code=502, detail='Agent knowledge file content upstream error')
+
+
+@router.get('/agents/{agent_id}/knowledge/files/download')
+async def download_agent_knowledge_file(agent_id: str, request: Request, user=Depends(get_verified_user)):
+    if not OPENCLAW_OPENAI_PROXY:
+        raise HTTPException(status_code=500, detail='OPENCLAW_OPENAI_PROXY is not configured')
+
+    headers = {'Accept': '*/*'}
+    authorization = request.headers.get('authorization')
+    if authorization:
+        headers['authorization'] = authorization
+
+    item_path = request.query_params.get('path', '')
+    if not item_path:
+        raise HTTPException(status_code=422, detail='path query parameter is required')
+
+    upstream_url = f"{OPENCLAW_OPENAI_PROXY}/api/v1/agents/{agent_id}/knowledge/files/download"
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(upstream_url, headers=headers, params={'path': item_path}) as response:
+                payload = await response.read()
+                response_headers: dict[str, str] = {}
+                content_disposition = response.headers.get('content-disposition')
+                if content_disposition:
+                    response_headers['content-disposition'] = content_disposition
+                return Response(
+                    content=payload,
+                    status_code=response.status,
+                    media_type=response.headers.get('content-type', 'application/octet-stream'),
+                    headers=response_headers,
+                )
+    except aiohttp.ClientResponseError as exc:
+        log.exception('Agent knowledge file download proxy upstream response error: %s', exc)
+        raise HTTPException(status_code=502, detail='Agent knowledge file download upstream response error')
+    except Exception as exc:
+        log.exception('Agent knowledge file download proxy upstream error: %s', exc)
+        raise HTTPException(status_code=502, detail='Agent knowledge file download upstream error')
 
 
 @router.patch('/agents/{agent_id}')

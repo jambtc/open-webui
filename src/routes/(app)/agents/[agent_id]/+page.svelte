@@ -10,9 +10,13 @@
 		deleteAgent,
 		getAgentKnowledgeTree,
 		createAgentKnowledgeFolder,
+		deleteAgentKnowledgeFolder,
 		uploadAgentKnowledgeFile,
 		deleteAgentKnowledgeFile,
+		getAgentKnowledgeFileContent,
+		getAgentKnowledgeFileDownloadUrl,
 		type AgentDetailResponse,
+		type AgentKnowledgeFileContentResponse,
 		type AgentKnowledgeTreeResponse,
 		type UpdateAgentPayload
 	} from '$lib/apis/agents';
@@ -20,8 +24,12 @@
 
 	import UserMenu from '$lib/components/layout/Sidebar/UserMenu.svelte';
 	import EditAgentModal from '$lib/components/agents/EditAgentModal.svelte';
+	import Modal from '$lib/components/common/Modal.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import Sidebar from '$lib/components/icons/Sidebar.svelte';
+	import Eye from '$lib/components/icons/Eye.svelte';
+	import Download from '$lib/components/icons/Download.svelte';
+	import GarbageBin from '$lib/components/icons/GarbageBin.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import { WEBUI_API_BASE_URL } from '$lib/constants';
 
@@ -35,6 +43,9 @@
 	let knowledgeError = '';
 	let currentKnowledgePath = '';
 	let knowledgeFileInput: HTMLInputElement | null = null;
+	let showKnowledgePreviewModal = false;
+	let knowledgePreviewLoading = false;
+	let knowledgePreview: AgentKnowledgeFileContentResponse | null = null;
 	let showEditAgentModal = false;
 	let editLoading = false;
 	let deleteLoading = false;
@@ -107,6 +118,21 @@
 		}
 	};
 
+	const deleteKnowledgeFolderHandler = async (itemPath: string, itemName: string) => {
+		const confirmed = window.confirm(
+			`Delete folder "${itemName}" and all its contents? This action cannot be undone.`
+		);
+		if (!confirmed) return;
+
+		try {
+			await deleteAgentKnowledgeFolder(localStorage.token, $page.params.agent_id, itemPath, true);
+			toast.success('Folder deleted successfully');
+			await loadKnowledgeTree(currentKnowledgePath);
+		} catch (error) {
+			toast.error(`${error}`);
+		}
+	};
+
 
 	const triggerKnowledgeUpload = () => {
 		knowledgeFileInput?.click();
@@ -139,6 +165,27 @@
 		} catch (error) {
 			toast.error(`${error}`);
 		}
+	};
+
+	const viewKnowledgeFileHandler = async (itemPath: string) => {
+		knowledgePreviewLoading = true;
+		knowledgePreview = null;
+		try {
+			knowledgePreview = await getAgentKnowledgeFileContent(
+				localStorage.token,
+				$page.params.agent_id,
+				itemPath
+			);
+			showKnowledgePreviewModal = true;
+		} catch (error) {
+			toast.error(`${error}`);
+		} finally {
+			knowledgePreviewLoading = false;
+		}
+	};
+
+	const downloadKnowledgeFileHandler = (itemPath: string) => {
+		window.open(getAgentKnowledgeFileDownloadUrl($page.params.agent_id, itemPath), '_blank');
 	};
 
 	const knowledgeBreadcrumbs = (path: string) => {
@@ -416,7 +463,7 @@
 					<div class="flex items-center justify-between gap-3">
 						<div>
 							<div class="text-sm font-medium text-gray-900 dark:text-gray-100">Knowledge</div>
-							<div class="mt-1 text-xs text-gray-500 dark:text-gray-400">Read-only tree for /memory/knowledge</div>
+							<div class="mt-1 text-xs text-gray-500 dark:text-gray-400">Tree for /memory/knowledge. Upload uses the current folder shown below.</div>
 						</div>
 						<div class="flex items-center gap-2">
 							<input bind:this={knowledgeFileInput} type="file" class="hidden" on:change={uploadKnowledgeFileHandler} />
@@ -426,7 +473,7 @@
 								on:click={triggerKnowledgeUpload}
 								disabled={knowledgeLoading}
 							>
-								Upload File
+								Upload Here
 							</button>
 							<button
 								type="button"
@@ -455,6 +502,10 @@
 						<div>
 							<span class="text-gray-500 dark:text-gray-400">Root:</span>
 							<span class="ml-2 font-mono text-xs text-gray-900 dark:text-gray-100">{knowledgeTree?.root ?? 'n/a'}</span>
+						</div>
+						<div>
+							<span class="text-gray-500 dark:text-gray-400">Current upload target:</span>
+							<span class="ml-2 font-mono text-xs text-gray-900 dark:text-gray-100">{currentKnowledgePath || 'root'}</span>
 						</div>
 					</div>
 
@@ -490,7 +541,7 @@
 						</div>
 					{:else if knowledgeTree}
 						<div class="mt-4 overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800">
-							<div class="grid grid-cols-[minmax(0,1.6fr)_120px_180px_120px] gap-3 border-b border-gray-200 bg-gray-50 px-4 py-2 text-xs font-medium uppercase tracking-wide text-gray-500 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-400">
+							<div class="grid grid-cols-[minmax(0,1.6fr)_120px_180px_180px] gap-3 border-b border-gray-200 bg-gray-50 px-4 py-2 text-xs font-medium uppercase tracking-wide text-gray-500 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-400">
 								<div>Name</div>
 								<div>Size</div>
 								<div>Updated</div>
@@ -500,7 +551,7 @@
 								<div class="px-4 py-6 text-sm text-gray-500 dark:text-gray-400">No knowledge files or folders in this path.</div>
 							{:else}
 								{#each knowledgeTree.items as item (item.path)}
-									<div class="grid grid-cols-[minmax(0,1.6fr)_120px_180px_120px] gap-3 border-t border-gray-100 px-4 py-3 text-sm dark:border-gray-850">
+									<div class="grid grid-cols-[minmax(0,1.6fr)_120px_180px_180px] gap-3 border-t border-gray-100 px-4 py-3 text-sm dark:border-gray-850">
 										<div class="min-w-0">
 											{#if item.kind === 'folder'}
 												<button
@@ -517,15 +568,51 @@
 										</div>
 										<div class="text-gray-600 dark:text-gray-300">{item.kind === 'file' ? formatBytes(item.size_bytes) : '—'}</div>
 										<div class="text-gray-600 dark:text-gray-300">{formatKnowledgeDate(item.updated_at)}</div>
-										<div class="flex items-start justify-start">
+										<div class="flex items-start justify-start gap-2">
 											{#if item.kind === 'file'}
-												<button
-													type="button"
-													class="rounded-lg border border-red-200 px-2 py-1 text-xs font-medium text-red-700 transition hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/40"
-													on:click={() => deleteKnowledgeFileHandler(item.path, item.name)}
-												>
-													Delete
-												</button>
+												<Tooltip content="View" interactive={true}>
+													<button
+														type="button"
+														class="rounded-lg border border-gray-200 p-1.5 text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-850"
+														on:click={() => viewKnowledgeFileHandler(item.path)}
+														disabled={knowledgeLoading || knowledgePreviewLoading}
+														aria-label="View file"
+													>
+														<Eye className="size-4" />
+													</button>
+												</Tooltip>
+												<Tooltip content="Download" interactive={true}>
+													<button
+														type="button"
+														class="rounded-lg border border-gray-200 p-1.5 text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-850"
+														on:click={() => downloadKnowledgeFileHandler(item.path)}
+														disabled={knowledgeLoading}
+														aria-label="Download file"
+													>
+														<Download className="size-4" />
+													</button>
+												</Tooltip>
+												<Tooltip content="Delete" interactive={true}>
+													<button
+														type="button"
+														class="rounded-lg border border-red-200 p-1.5 text-red-700 transition hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/40"
+														on:click={() => deleteKnowledgeFileHandler(item.path, item.name)}
+														aria-label="Delete file"
+													>
+														<GarbageBin className="size-4" />
+													</button>
+												</Tooltip>
+											{:else if item.kind === 'folder'}
+												<Tooltip content="Delete Folder" interactive={true}>
+													<button
+														type="button"
+														class="rounded-lg border border-red-200 p-1.5 text-red-700 transition hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/40"
+														on:click={() => deleteKnowledgeFolderHandler(item.path, item.name)}
+														aria-label="Delete folder"
+													>
+														<GarbageBin className="size-4" />
+													</button>
+												</Tooltip>
 											{:else}
 												<span class="text-gray-400">—</span>
 											{/if}
@@ -561,3 +648,41 @@
 	initialAvatar={typeof agent?.identity?.avatar_url === 'string' ? agent.identity.avatar_url : ''}
 	onSubmit={updateAgentHandler}
 />
+
+<Modal size="lg" bind:show={showKnowledgePreviewModal}>
+	<div class="flex items-center justify-between gap-4">
+		<div>
+			<div class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+				{knowledgePreview?.filename ?? 'Knowledge File'}
+			</div>
+			{#if knowledgePreview}
+				<div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+					{knowledgePreview.path}
+				</div>
+			{/if}
+		</div>
+	</div>
+
+	<div class="mt-4 space-y-2 text-sm">
+		{#if knowledgePreview}
+			<div>
+				<span class="text-gray-500 dark:text-gray-400">Mime:</span>
+				<span class="ml-2 text-gray-900 dark:text-gray-100">{knowledgePreview.mime_type}</span>
+			</div>
+			<div>
+				<span class="text-gray-500 dark:text-gray-400">Size:</span>
+				<span class="ml-2 text-gray-900 dark:text-gray-100">{formatBytes(knowledgePreview.size_bytes)}</span>
+			</div>
+		{/if}
+	</div>
+
+	<div class="mt-4">
+		{#if knowledgePreview && knowledgePreview.content_text !== null}
+			<pre class="max-h-[60vh] overflow-auto rounded-xl bg-gray-50 p-4 text-xs text-gray-700 dark:bg-gray-950 dark:text-gray-300">{knowledgePreview.content_text}</pre>
+		{:else if knowledgePreview}
+			<div class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300">
+				Binary file preview is not available. Use Download instead.
+			</div>
+		{/if}
+	</div>
+</Modal>

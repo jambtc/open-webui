@@ -314,6 +314,48 @@ export const createAgentKnowledgeFolder = async (
 	return res;
 };
 
+export type AgentKnowledgeFolderDeleteResponse = {
+	deleted: boolean;
+	agent_id: string;
+	path: string;
+};
+
+export const deleteAgentKnowledgeFolder = async (
+	token: string = '',
+	agentId: string,
+	path: string,
+	recursive: boolean = true
+): Promise<AgentKnowledgeFolderDeleteResponse> => {
+	let error = null;
+	const searchParams = new URLSearchParams();
+	searchParams.append('path', path);
+	searchParams.append('recursive', recursive ? 'true' : 'false');
+
+	const res = await fetch(`${WEBUI_API_BASE_URL}/agents/${agentId}/knowledge/folders?${searchParams.toString()}`, {
+		method: 'DELETE',
+		headers: {
+			Accept: 'application/json',
+			'Content-Type': 'application/json',
+			...(token && { authorization: `Bearer ${token}` })
+		}
+	})
+		.then(async (res) => {
+			if (!res.ok) throw await res.json();
+			return res.json();
+		})
+		.catch((err) => {
+			error = err?.detail ?? err;
+			console.error(err);
+			return null;
+		});
+
+	if (error) {
+		throw error;
+	}
+
+	return res;
+};
+
 export type AgentKnowledgeFileMutationResponse = {
 	ok: boolean;
 	agent_id: string;
@@ -402,4 +444,56 @@ export const deleteAgentKnowledgeFile = async (
 	}
 
 	return res;
+};
+
+
+export type AgentKnowledgeFileContentResponse = {
+	agent_id: string;
+	path: string;
+	filename: string;
+	size_bytes: number;
+	mime_type: string;
+	updated_at: string;
+	content_text: string | null;
+	content_base64: string | null;
+};
+
+export const getAgentKnowledgeFileContent = async (
+	token: string = '',
+	agentId: string,
+	path: string
+): Promise<AgentKnowledgeFileContentResponse> => {
+	let error = null;
+	const searchParams = new URLSearchParams();
+	searchParams.append('path', path);
+
+	const res = await fetch(`${WEBUI_API_BASE_URL}/agents/${agentId}/knowledge/files/content?${searchParams.toString()}`, {
+		method: 'GET',
+		headers: {
+			Accept: 'application/json',
+			'Content-Type': 'application/json',
+			...(token && { authorization: `Bearer ${token}` })
+		}
+	})
+		.then(async (res) => {
+			if (!res.ok) throw await res.json();
+			return res.json();
+		})
+		.catch((err) => {
+			error = err?.detail ?? err;
+			console.error(err);
+			return null;
+		});
+
+	if (error) {
+		throw error;
+	}
+
+	return res;
+};
+
+export const getAgentKnowledgeFileDownloadUrl = (agentId: string, path: string) => {
+	const searchParams = new URLSearchParams();
+	searchParams.append('path', path);
+	return `${WEBUI_API_BASE_URL}/agents/${agentId}/knowledge/files/download?${searchParams.toString()}`;
 };
