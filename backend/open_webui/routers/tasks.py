@@ -195,6 +195,7 @@ async def generate_title(request: Request, form_data: dict, user=Depends(get_ver
         'model': task_model_id,
         'messages': [{'role': 'user', 'content': content}],
         'stream': False,
+        'agent_id': form_data.get('agent_id'),
         **(
             {'max_tokens': max_tokens}
             if models[task_model_id].get('owned_by') == 'ollama'
@@ -270,6 +271,7 @@ async def generate_follow_ups(request: Request, form_data: dict, user=Depends(ge
         'model': task_model_id,
         'messages': [{'role': 'user', 'content': content}],
         'stream': False,
+        'agent_id': form_data.get('agent_id'),
         'metadata': {
             **(request.state.metadata if hasattr(request.state, 'metadata') else {}),
             'task': str(TASKS.FOLLOW_UP_GENERATION),
@@ -338,6 +340,7 @@ async def generate_chat_tags(request: Request, form_data: dict, user=Depends(get
         'model': task_model_id,
         'messages': [{'role': 'user', 'content': content}],
         'stream': False,
+        'agent_id': form_data.get('agent_id'),
         'metadata': {
             **(request.state.metadata if hasattr(request.state, 'metadata') else {}),
             'task': str(TASKS.TAGS_GENERATION),

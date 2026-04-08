@@ -1022,6 +1022,7 @@ async def generate_chat_completion(
 
     payload = {**form_data}
     metadata = payload.pop('metadata', None)
+    agent_id = str(payload.pop('agent_id', '') or '').strip()
 
     model_id = form_data.get('model')
     model_info = Models.get_model_by_id(model_id)
@@ -1127,6 +1128,8 @@ async def generate_chat_completion(
             payload['logit_bias'] = json.loads(logit_bias)
 
     headers, cookies = await get_headers_and_cookies(request, url, key, api_config, metadata, user=user)
+    if agent_id:
+        headers['x-openclaw-agent-id'] = agent_id
 
     is_responses = api_config.get('api_type') == 'responses'
 
