@@ -828,6 +828,37 @@
 						</Tooltip>
 					</div>
 				{/if}
+
+				<div class="">
+					<Tooltip content={$i18n.t('Agents')} placement="right">
+						<a
+							class=" cursor-pointer flex rounded-xl hover:bg-gray-100 dark:hover:bg-gray-850 transition group"
+							href="/agents"
+							on:click={async (e) => {
+								e.stopImmediatePropagation();
+								e.preventDefault();
+
+								goto('/agents');
+								itemClickHandler();
+							}}
+							aria-label={$i18n.t('Agents')}
+							draggable="false"
+						>
+							<div class=" self-center flex items-center justify-center size-9">
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke-width="2"
+									stroke="currentColor"
+									class="size-4.5"
+								>
+									<path stroke-linecap="round" stroke-linejoin="round" d="M17.25 18a2.25 2.25 0 0 0 2.25-2.25V15a3.75 3.75 0 1 0-7.5 0v.75A2.25 2.25 0 0 0 14.25 18h3Zm-10.5 0A2.25 2.25 0 0 1 4.5 15.75V15a3.75 3.75 0 1 1 7.5 0v.75A2.25 2.25 0 0 1 9.75 18h-3Zm8.25-10.5a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-8.25 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z"/>
+								</svg>
+							</div>
+						</a>
+					</Tooltip>
+				</div>
 			</div>
 		</button>
 
@@ -1057,8 +1088,7 @@
 						</div>
 					{/if}
 
-					{#if $user?.role === 'admin'}
-						<div class="px-[0.4375rem] flex justify-center text-gray-800 dark:text-gray-200">
+					<div class="px-[0.4375rem] flex justify-center text-gray-800 dark:text-gray-200">
 							<a
 								id="sidebar-agents-button"
 								class="grow flex items-center space-x-3 rounded-2xl px-2.5 py-2 transition {$page.url.pathname.startsWith('/agents') ? 'bg-gray-100 dark:bg-gray-900' : 'hover:bg-gray-100 dark:hover:bg-gray-900'}"
@@ -1085,7 +1115,6 @@
 								</div>
 							</a>
 						</div>
-					{/if}
 				</div>
 
 				{#if ($models ?? []).length > 0 && (($settings?.pinnedModels ?? []).length > 0 || $config?.default_pinned_models)}
