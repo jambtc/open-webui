@@ -6,7 +6,7 @@ import aiohttp
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, Response
 
-from open_webui.utils.auth import get_admin_user, get_verified_user
+from open_webui.utils.auth import get_verified_user
 
 log = logging.getLogger(__name__)
 
@@ -14,15 +14,62 @@ router = APIRouter()
 OPENCLAW_OPENAI_PROXY = os.environ.get('OPENCLAW_OPENAI_PROXY', '').rstrip('/')
 
 
-@router.post('/agents')
-async def create_agent(request: Request, user=Depends(get_admin_user)):
-    if not OPENCLAW_OPENAI_PROXY:
-        raise HTTPException(status_code=500, detail='OPENCLAW_OPENAI_PROXY is not configured')
+async def _apply_request_authorization(headers: dict, request: Request, user) -> dict:
+    log.info(
+        'BOXEDAI auth cookies user_id=%s cookie_names=%s has_oauth_id_token=%s has_oauth_session_id=%s has_auth_header=%s has_state_token=%s',
+        getattr(user, 'id', None),
+        sorted(request.cookies.keys()),
+        bool(request.cookies.get('oauth_id_token')),
+        bool(request.cookies.get('oauth_session_id')),
+        bool(request.headers.get('authorization')),
+        bool(getattr(getattr(request, 'state', None), 'token', None)),
+    )
 
-    headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+    oauth_session_id = request.cookies.get('oauth_session_id')
+    if oauth_session_id:
+        try:
+            oauth_token = await request.app.state.oauth_manager.get_oauth_token(user.id, oauth_session_id)
+            if oauth_token:
+                if oauth_token.get('access_token'):
+                    headers['authorization'] = f"Bearer {oauth_token['access_token']}"
+                    log.info('BOXEDAI auth selected source=oauth_session_id.access_token user_id=%s', getattr(user, 'id', None))
+                    return headers
+                if oauth_token.get('id_token'):
+                    headers['authorization'] = f"Bearer {oauth_token['id_token']}"
+                    log.info('BOXEDAI auth selected source=oauth_session_id.id_token user_id=%s', getattr(user, 'id', None))
+                    return headers
+            log.warning('BOXEDAI auth oauth_session_id present but no oauth token resolved user_id=%s', getattr(user, 'id', None))
+        except Exception as exc:
+            log.exception(f'Error getting OpenClaw OAuth token: {exc}')
+
+    oauth_id_token = request.cookies.get('oauth_id_token')
+    if oauth_id_token:
+        headers['authorization'] = f'Bearer {oauth_id_token}'
+        log.info('BOXEDAI auth selected source=oauth_id_token user_id=%s', getattr(user, 'id', None))
+        return headers
+
     authorization = request.headers.get('authorization')
     if authorization:
         headers['authorization'] = authorization
+        log.info('BOXEDAI auth selected source=request.authorization user_id=%s', getattr(user, 'id', None))
+        return headers
+
+    state_token = getattr(request.state, 'token', None)
+    if state_token and getattr(state_token, 'credentials', None) and not request.headers.get('x-api-key'):
+        headers['authorization'] = f'Bearer {state_token.credentials}'
+        log.info('BOXEDAI auth selected source=request.state.token user_id=%s', getattr(user, 'id', None))
+        return headers
+
+    log.warning('BOXEDAI auth no bearer source resolved user_id=%s', getattr(user, 'id', None))
+    return headers
+
+
+@router.post('/agents')
+async def create_agent(request: Request, user=Depends(get_verified_user)):
+    if not OPENCLAW_OPENAI_PROXY:
+        raise HTTPException(status_code=500, detail='OPENCLAW_OPENAI_PROXY is not configured')
+
+    headers = await _apply_request_authorization({'Accept': 'application/json', 'Content-Type': 'application/json'}, request, user)
 
     try:
         body = await request.json()
@@ -49,10 +96,7 @@ async def get_agents(request: Request, user=Depends(get_verified_user)):
     if not OPENCLAW_OPENAI_PROXY:
         raise HTTPException(status_code=500, detail='OPENCLAW_OPENAI_PROXY is not configured')
 
-    headers = {'Accept': 'application/json'}
-    authorization = request.headers.get('authorization')
-    if authorization:
-        headers['authorization'] = authorization
+    headers = await _apply_request_authorization({'Accept': 'application/json'}, request, user)
 
     upstream_url = f"{OPENCLAW_OPENAI_PROXY}/api/v1/agents"
 
@@ -60,6 +104,16 @@ async def get_agents(request: Request, user=Depends(get_verified_user)):
         async with aiohttp.ClientSession() as session:
             async with session.get(upstream_url, headers=headers) as response:
                 payload = await response.json(content_type=None)
+                if isinstance(payload, dict):
+                    items = payload.get('items')
+                    log.info(
+                        'BOXEDAI agents list upstream_status=%s items_count=%s default_agent_id=%s',
+                        response.status,
+                        len(items) if isinstance(items, list) else None,
+                        payload.get('default_agent_id'),
+                    )
+                else:
+                    log.info('BOXEDAI agents list upstream_status=%s payload_type=%s', response.status, type(payload).__name__)
                 return JSONResponse(content=payload, status_code=response.status)
     except aiohttp.ClientResponseError as exc:
         log.exception('Agents proxy upstream response error: %s', exc)
@@ -70,14 +124,11 @@ async def get_agents(request: Request, user=Depends(get_verified_user)):
 
 
 @router.get('/agents/{agent_id}')
-async def get_agent_detail(agent_id: str, request: Request, user=Depends(get_admin_user)):
+async def get_agent_detail(agent_id: str, request: Request, user=Depends(get_verified_user)):
     if not OPENCLAW_OPENAI_PROXY:
         raise HTTPException(status_code=500, detail='OPENCLAW_OPENAI_PROXY is not configured')
 
-    headers = {'Accept': 'application/json'}
-    authorization = request.headers.get('authorization')
-    if authorization:
-        headers['authorization'] = authorization
+    headers = await _apply_request_authorization({'Accept': 'application/json'}, request, user)
 
     query_items = dict(request.query_params)
     query = urlencode(query_items)
@@ -89,6 +140,16 @@ async def get_agent_detail(agent_id: str, request: Request, user=Depends(get_adm
         async with aiohttp.ClientSession() as session:
             async with session.get(upstream_url, headers=headers) as response:
                 payload = await response.json(content_type=None)
+                if isinstance(payload, dict):
+                    items = payload.get('items')
+                    log.info(
+                        'BOXEDAI agents list upstream_status=%s items_count=%s default_agent_id=%s',
+                        response.status,
+                        len(items) if isinstance(items, list) else None,
+                        payload.get('default_agent_id'),
+                    )
+                else:
+                    log.info('BOXEDAI agents list upstream_status=%s payload_type=%s', response.status, type(payload).__name__)
                 return JSONResponse(content=payload, status_code=response.status)
     except aiohttp.ClientResponseError as exc:
         log.exception('Agent detail proxy upstream response error: %s', exc)
@@ -99,14 +160,11 @@ async def get_agent_detail(agent_id: str, request: Request, user=Depends(get_adm
 
 
 @router.get('/agents/{agent_id}/knowledge/tree')
-async def get_agent_knowledge_tree(agent_id: str, request: Request, user=Depends(get_admin_user)):
+async def get_agent_knowledge_tree(agent_id: str, request: Request, user=Depends(get_verified_user)):
     if not OPENCLAW_OPENAI_PROXY:
         raise HTTPException(status_code=500, detail='OPENCLAW_OPENAI_PROXY is not configured')
 
-    headers = {'Accept': 'application/json'}
-    authorization = request.headers.get('authorization')
-    if authorization:
-        headers['authorization'] = authorization
+    headers = await _apply_request_authorization({'Accept': 'application/json'}, request, user)
 
     query_items = dict(request.query_params)
     query = urlencode(query_items)
@@ -118,6 +176,16 @@ async def get_agent_knowledge_tree(agent_id: str, request: Request, user=Depends
         async with aiohttp.ClientSession() as session:
             async with session.get(upstream_url, headers=headers) as response:
                 payload = await response.json(content_type=None)
+                if isinstance(payload, dict):
+                    items = payload.get('items')
+                    log.info(
+                        'BOXEDAI agents list upstream_status=%s items_count=%s default_agent_id=%s',
+                        response.status,
+                        len(items) if isinstance(items, list) else None,
+                        payload.get('default_agent_id'),
+                    )
+                else:
+                    log.info('BOXEDAI agents list upstream_status=%s payload_type=%s', response.status, type(payload).__name__)
                 return JSONResponse(content=payload, status_code=response.status)
     except aiohttp.ClientResponseError as exc:
         log.exception('Agent knowledge tree proxy upstream response error: %s', exc)
@@ -128,14 +196,11 @@ async def get_agent_knowledge_tree(agent_id: str, request: Request, user=Depends
 
 
 @router.post('/agents/{agent_id}/knowledge/folders')
-async def create_agent_knowledge_folder(agent_id: str, request: Request, user=Depends(get_admin_user)):
+async def create_agent_knowledge_folder(agent_id: str, request: Request, user=Depends(get_verified_user)):
     if not OPENCLAW_OPENAI_PROXY:
         raise HTTPException(status_code=500, detail='OPENCLAW_OPENAI_PROXY is not configured')
 
-    headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
-    authorization = request.headers.get('authorization')
-    if authorization:
-        headers['authorization'] = authorization
+    headers = await _apply_request_authorization({'Accept': 'application/json', 'Content-Type': 'application/json'}, request, user)
 
     try:
         body = await request.json()
@@ -158,14 +223,11 @@ async def create_agent_knowledge_folder(agent_id: str, request: Request, user=De
 
 
 @router.delete('/agents/{agent_id}/knowledge/folders')
-async def delete_agent_knowledge_folder(agent_id: str, request: Request, user=Depends(get_admin_user)):
+async def delete_agent_knowledge_folder(agent_id: str, request: Request, user=Depends(get_verified_user)):
     if not OPENCLAW_OPENAI_PROXY:
         raise HTTPException(status_code=500, detail='OPENCLAW_OPENAI_PROXY is not configured')
 
-    headers = {'Accept': 'application/json'}
-    authorization = request.headers.get('authorization')
-    if authorization:
-        headers['authorization'] = authorization
+    headers = await _apply_request_authorization({'Accept': 'application/json'}, request, user)
 
     item_path = request.query_params.get('path', '')
     if not item_path:
@@ -200,15 +262,12 @@ async def upload_agent_knowledge_file(
     path: str = Form(default=''),
     filename: str | None = Form(default=None),
     overwrite: bool = Form(default=False),
-    user=Depends(get_admin_user),
+    user=Depends(get_verified_user),
 ):
     if not OPENCLAW_OPENAI_PROXY:
         raise HTTPException(status_code=500, detail='OPENCLAW_OPENAI_PROXY is not configured')
 
-    headers = {'Accept': 'application/json'}
-    authorization = request.headers.get('authorization')
-    if authorization:
-        headers['authorization'] = authorization
+    headers = await _apply_request_authorization({'Accept': 'application/json'}, request, user)
 
     form = aiohttp.FormData()
     form.add_field('file', await file.read(), filename=(filename or file.filename or 'upload'), content_type=file.content_type or 'application/octet-stream')
@@ -233,14 +292,11 @@ async def upload_agent_knowledge_file(
 
 
 @router.delete('/agents/{agent_id}/knowledge/files')
-async def delete_agent_knowledge_file(agent_id: str, request: Request, user=Depends(get_admin_user)):
+async def delete_agent_knowledge_file(agent_id: str, request: Request, user=Depends(get_verified_user)):
     if not OPENCLAW_OPENAI_PROXY:
         raise HTTPException(status_code=500, detail='OPENCLAW_OPENAI_PROXY is not configured')
 
-    headers = {'Accept': 'application/json'}
-    authorization = request.headers.get('authorization')
-    if authorization:
-        headers['authorization'] = authorization
+    headers = await _apply_request_authorization({'Accept': 'application/json'}, request, user)
 
     item_path = request.query_params.get('path', '')
     if not item_path:
@@ -262,14 +318,11 @@ async def delete_agent_knowledge_file(agent_id: str, request: Request, user=Depe
 
 
 @router.get('/agents/{agent_id}/knowledge/files/content')
-async def get_agent_knowledge_file_content(agent_id: str, request: Request, user=Depends(get_admin_user)):
+async def get_agent_knowledge_file_content(agent_id: str, request: Request, user=Depends(get_verified_user)):
     if not OPENCLAW_OPENAI_PROXY:
         raise HTTPException(status_code=500, detail='OPENCLAW_OPENAI_PROXY is not configured')
 
-    headers = {'Accept': 'application/json'}
-    authorization = request.headers.get('authorization')
-    if authorization:
-        headers['authorization'] = authorization
+    headers = await _apply_request_authorization({'Accept': 'application/json'}, request, user)
 
     item_path = request.query_params.get('path', '')
     if not item_path:
@@ -291,14 +344,11 @@ async def get_agent_knowledge_file_content(agent_id: str, request: Request, user
 
 
 @router.get('/agents/{agent_id}/knowledge/files/download')
-async def download_agent_knowledge_file(agent_id: str, request: Request, user=Depends(get_admin_user)):
+async def download_agent_knowledge_file(agent_id: str, request: Request, user=Depends(get_verified_user)):
     if not OPENCLAW_OPENAI_PROXY:
         raise HTTPException(status_code=500, detail='OPENCLAW_OPENAI_PROXY is not configured')
 
-    headers = {'Accept': '*/*'}
-    authorization = request.headers.get('authorization')
-    if authorization:
-        headers['authorization'] = authorization
+    headers = _apply_request_authorization({'Accept': '*/*'}, request)
 
     item_path = request.query_params.get('path', '')
     if not item_path:
@@ -329,14 +379,11 @@ async def download_agent_knowledge_file(agent_id: str, request: Request, user=De
 
 
 @router.patch('/agents/{agent_id}')
-async def update_agent(agent_id: str, request: Request, user=Depends(get_admin_user)):
+async def update_agent(agent_id: str, request: Request, user=Depends(get_verified_user)):
     if not OPENCLAW_OPENAI_PROXY:
         raise HTTPException(status_code=500, detail='OPENCLAW_OPENAI_PROXY is not configured')
 
-    headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
-    authorization = request.headers.get('authorization')
-    if authorization:
-        headers['authorization'] = authorization
+    headers = await _apply_request_authorization({'Accept': 'application/json', 'Content-Type': 'application/json'}, request, user)
 
     try:
         body = await request.json()
@@ -359,14 +406,11 @@ async def update_agent(agent_id: str, request: Request, user=Depends(get_admin_u
 
 
 @router.delete('/agents/{agent_id}')
-async def delete_agent(agent_id: str, request: Request, user=Depends(get_admin_user)):
+async def delete_agent(agent_id: str, request: Request, user=Depends(get_verified_user)):
     if not OPENCLAW_OPENAI_PROXY:
         raise HTTPException(status_code=500, detail='OPENCLAW_OPENAI_PROXY is not configured')
 
-    headers = {'Accept': 'application/json'}
-    authorization = request.headers.get('authorization')
-    if authorization:
-        headers['authorization'] = authorization
+    headers = await _apply_request_authorization({'Accept': 'application/json'}, request, user)
 
     query_items = dict(request.query_params)
     query = urlencode(query_items)

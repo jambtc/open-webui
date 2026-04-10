@@ -139,7 +139,7 @@ class OAuthSessionTable:
                 else:
                     return None
         except Exception as e:
-            log.error(f'Error creating OAuth session: {e}')
+            log.exception(f'Error creating OAuth session: {e}')
             return None
 
     def get_session_by_id(self, session_id: str, db: Optional[Session] = None) -> Optional[OAuthSessionModel]:

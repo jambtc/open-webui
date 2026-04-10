@@ -1,5 +1,17 @@
 import { WEBUI_API_BASE_URL } from '$lib/constants';
 
+const jsonHeaders = {
+	Accept: 'application/json',
+	'Content-Type': 'application/json'
+};
+
+const authFetch = (input: RequestInfo | URL, init: RequestInit = {}) => {
+	return fetch(input, {
+		credentials: 'include',
+		...init
+	});
+};
+
 export type AgentItem = {
 	agent_id: string;
 	name: string | null;
@@ -16,16 +28,12 @@ export type AgentsListResponse = {
 	items: AgentItem[];
 };
 
-export const getAgents = async (token: string = ''): Promise<AgentsListResponse> => {
+export const getAgents = async (_token: string = ''): Promise<AgentsListResponse> => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/agents`, {
+	const res = await authFetch(`${WEBUI_API_BASE_URL}/boxedai/agents`, {
 		method: 'GET',
-		headers: {
-			Accept: 'application/json',
-			'Content-Type': 'application/json',
-			...(token && { authorization: `Bearer ${token}` })
-		}
+		headers: jsonHeaders
 	})
 		.then(async (res) => {
 			if (!res.ok) throw await res.json();
@@ -51,7 +59,7 @@ export type AgentDetailResponse = AgentItem & {
 };
 
 export const getAgentById = async (
-	token: string = '',
+	_token: string = '',
 	agentId: string,
 	includeFiles: boolean = false
 ): Promise<AgentDetailResponse> => {
@@ -60,15 +68,11 @@ export const getAgentById = async (
 	const searchParams = new URLSearchParams();
 	if (includeFiles) searchParams.append('include_files', 'true');
 
-	const res = await fetch(
-		`${WEBUI_API_BASE_URL}/agents/${agentId}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`,
+	const res = await authFetch(
+		`${WEBUI_API_BASE_URL}/boxedai/agents/${agentId}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`,
 		{
 			method: 'GET',
-			headers: {
-				Accept: 'application/json',
-				'Content-Type': 'application/json',
-				...(token && { authorization: `Bearer ${token}` })
-			}
+			headers: jsonHeaders
 		}
 	)
 		.then(async (res) => {
@@ -104,18 +108,14 @@ export type AgentCreateResponse = {
 };
 
 export const createAgent = async (
-	token: string = '',
+	_token: string = '',
 	body: CreateAgentPayload
 ): Promise<AgentCreateResponse> => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/agents`, {
+	const res = await authFetch(`${WEBUI_API_BASE_URL}/boxedai/agents`, {
 		method: 'POST',
-		headers: {
-			Accept: 'application/json',
-			'Content-Type': 'application/json',
-			...(token && { authorization: `Bearer ${token}` })
-		},
+		headers: jsonHeaders,
 		body: JSON.stringify(body)
 	})
 		.then(async (res) => {
@@ -149,19 +149,15 @@ export type AgentUpdateResponse = {
 };
 
 export const updateAgent = async (
-	token: string = '',
+	_token: string = '',
 	agentId: string,
 	body: UpdateAgentPayload
 ): Promise<AgentUpdateResponse> => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/agents/${agentId}`, {
+	const res = await authFetch(`${WEBUI_API_BASE_URL}/boxedai/agents/${agentId}`, {
 		method: 'PATCH',
-		headers: {
-			Accept: 'application/json',
-			'Content-Type': 'application/json',
-			...(token && { authorization: `Bearer ${token}` })
-		},
+		headers: jsonHeaders,
 		body: JSON.stringify(body)
 	})
 		.then(async (res) => {
@@ -189,7 +185,7 @@ export type AgentDeleteResponse = {
 };
 
 export const deleteAgent = async (
-	token: string = '',
+	_token: string = '',
 	agentId: string,
 	deleteFiles: boolean = true
 ): Promise<AgentDeleteResponse> => {
@@ -197,13 +193,9 @@ export const deleteAgent = async (
 	const searchParams = new URLSearchParams();
 	searchParams.append('delete_files', deleteFiles ? 'true' : 'false');
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/agents/${agentId}?${searchParams.toString()}`, {
+	const res = await authFetch(`${WEBUI_API_BASE_URL}/boxedai/agents/${agentId}?${searchParams.toString()}`, {
 		method: 'DELETE',
-		headers: {
-			Accept: 'application/json',
-			'Content-Type': 'application/json',
-			...(token && { authorization: `Bearer ${token}` })
-		}
+		headers: jsonHeaders
 	})
 		.then(async (res) => {
 			if (!res.ok) throw await res.json();
@@ -239,7 +231,7 @@ export type AgentKnowledgeTreeResponse = {
 };
 
 export const getAgentKnowledgeTree = async (
-	token: string = '',
+	_token: string = '',
 	agentId: string,
 	path: string = ''
 ): Promise<AgentKnowledgeTreeResponse> => {
@@ -247,15 +239,11 @@ export const getAgentKnowledgeTree = async (
 	const searchParams = new URLSearchParams();
 	if (path) searchParams.append('path', path);
 
-	const res = await fetch(
-		`${WEBUI_API_BASE_URL}/agents/${agentId}/knowledge/tree${searchParams.toString() ? `?${searchParams.toString()}` : ''}`,
+	const res = await authFetch(
+		`${WEBUI_API_BASE_URL}/boxedai/agents/${agentId}/knowledge/tree${searchParams.toString() ? `?${searchParams.toString()}` : ''}`,
 		{
 			method: 'GET',
-			headers: {
-				Accept: 'application/json',
-				'Content-Type': 'application/json',
-				...(token && { authorization: `Bearer ${token}` })
-			}
+			headers: jsonHeaders
 		}
 	)
 		.then(async (res) => {
@@ -282,19 +270,15 @@ export type AgentKnowledgeFolderMutationResponse = {
 };
 
 export const createAgentKnowledgeFolder = async (
-	token: string = '',
+	_token: string = '',
 	agentId: string,
 	path: string
 ): Promise<AgentKnowledgeFolderMutationResponse> => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/agents/${agentId}/knowledge/folders`, {
+	const res = await authFetch(`${WEBUI_API_BASE_URL}/boxedai/agents/${agentId}/knowledge/folders`, {
 		method: 'POST',
-		headers: {
-			Accept: 'application/json',
-			'Content-Type': 'application/json',
-			...(token && { authorization: `Bearer ${token}` })
-		},
+		headers: jsonHeaders,
 		body: JSON.stringify({ path })
 	})
 		.then(async (res) => {
@@ -321,7 +305,7 @@ export type AgentKnowledgeFolderDeleteResponse = {
 };
 
 export const deleteAgentKnowledgeFolder = async (
-	token: string = '',
+	_token: string = '',
 	agentId: string,
 	path: string,
 	recursive: boolean = true
@@ -331,13 +315,9 @@ export const deleteAgentKnowledgeFolder = async (
 	searchParams.append('path', path);
 	searchParams.append('recursive', recursive ? 'true' : 'false');
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/agents/${agentId}/knowledge/folders?${searchParams.toString()}`, {
+	const res = await authFetch(`${WEBUI_API_BASE_URL}/boxedai/agents/${agentId}/knowledge/folders?${searchParams.toString()}`, {
 		method: 'DELETE',
-		headers: {
-			Accept: 'application/json',
-			'Content-Type': 'application/json',
-			...(token && { authorization: `Bearer ${token}` })
-		}
+		headers: jsonHeaders
 	})
 		.then(async (res) => {
 			if (!res.ok) throw await res.json();
@@ -368,7 +348,7 @@ export type AgentKnowledgeFileMutationResponse = {
 };
 
 export const uploadAgentKnowledgeFile = async (
-	token: string = '',
+	_token: string = '',
 	agentId: string,
 	file: File,
 	path: string = '',
@@ -380,11 +360,10 @@ export const uploadAgentKnowledgeFile = async (
 	formData.append('path', path);
 	formData.append('overwrite', overwrite ? 'true' : 'false');
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/agents/${agentId}/knowledge/files/upload`, {
+	const res = await authFetch(`${WEBUI_API_BASE_URL}/boxedai/agents/${agentId}/knowledge/files/upload`, {
 		method: 'POST',
 		headers: {
-			Accept: 'application/json',
-			...(token && { authorization: `Bearer ${token}` })
+			Accept: 'application/json'
 		},
 		body: formData
 	})
@@ -405,7 +384,6 @@ export const uploadAgentKnowledgeFile = async (
 	return res;
 };
 
-
 export type AgentKnowledgeFileDeleteResponse = {
 	deleted: boolean;
 	agent_id: string;
@@ -413,7 +391,7 @@ export type AgentKnowledgeFileDeleteResponse = {
 };
 
 export const deleteAgentKnowledgeFile = async (
-	token: string = '',
+	_token: string = '',
 	agentId: string,
 	path: string
 ): Promise<AgentKnowledgeFileDeleteResponse> => {
@@ -421,13 +399,9 @@ export const deleteAgentKnowledgeFile = async (
 	const searchParams = new URLSearchParams();
 	searchParams.append('path', path);
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/agents/${agentId}/knowledge/files?${searchParams.toString()}`, {
+	const res = await authFetch(`${WEBUI_API_BASE_URL}/boxedai/agents/${agentId}/knowledge/files?${searchParams.toString()}`, {
 		method: 'DELETE',
-		headers: {
-			Accept: 'application/json',
-			'Content-Type': 'application/json',
-			...(token && { authorization: `Bearer ${token}` })
-		}
+		headers: jsonHeaders
 	})
 		.then(async (res) => {
 			if (!res.ok) throw await res.json();
@@ -446,7 +420,6 @@ export const deleteAgentKnowledgeFile = async (
 	return res;
 };
 
-
 export type AgentKnowledgeFileContentResponse = {
 	agent_id: string;
 	path: string;
@@ -459,7 +432,7 @@ export type AgentKnowledgeFileContentResponse = {
 };
 
 export const getAgentKnowledgeFileContent = async (
-	token: string = '',
+	_token: string = '',
 	agentId: string,
 	path: string
 ): Promise<AgentKnowledgeFileContentResponse> => {
@@ -467,13 +440,9 @@ export const getAgentKnowledgeFileContent = async (
 	const searchParams = new URLSearchParams();
 	searchParams.append('path', path);
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/agents/${agentId}/knowledge/files/content?${searchParams.toString()}`, {
+	const res = await authFetch(`${WEBUI_API_BASE_URL}/boxedai/agents/${agentId}/knowledge/files/content?${searchParams.toString()}`, {
 		method: 'GET',
-		headers: {
-			Accept: 'application/json',
-			'Content-Type': 'application/json',
-			...(token && { authorization: `Bearer ${token}` })
-		}
+		headers: jsonHeaders
 	})
 		.then(async (res) => {
 			if (!res.ok) throw await res.json();
@@ -495,5 +464,5 @@ export const getAgentKnowledgeFileContent = async (
 export const getAgentKnowledgeFileDownloadUrl = (agentId: string, path: string) => {
 	const searchParams = new URLSearchParams();
 	searchParams.append('path', path);
-	return `${WEBUI_API_BASE_URL}/agents/${agentId}/knowledge/files/download?${searchParams.toString()}`;
+	return `${WEBUI_API_BASE_URL}/boxedai/agents/${agentId}/knowledge/files/download?${searchParams.toString()}`;
 };
