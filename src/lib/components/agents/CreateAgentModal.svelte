@@ -8,31 +8,17 @@
 
 	export let show = false;
 	export let loading = false;
-	export let onSubmit: (payload: { name: string; workspace: string; emoji: string | null; avatar: string | null }) => Promise<void> = async () => {};
+	export let onSubmit: (payload: { name: string }) => Promise<void> = async () => {};
 
 	let name = '';
-	let workspace = '';
-	let emoji = '';
-	let avatar = '';
-	let showWorkspaceError = false;
 
 	$: if (!show) {
 		name = '';
-		workspace = '';
-		emoji = '';
-		avatar = '';
-		showWorkspaceError = false;
 	}
 
 	const submitHandler = async () => {
-		showWorkspaceError = !workspace.trim();
-		if (showWorkspaceError) return;
-
 		await onSubmit({
-			name: name.trim(),
-			workspace: workspace.trim(),
-			emoji: emoji.trim() || null,
-			avatar: avatar.trim() || null
+			name: name.trim()
 		});
 	};
 </script>
@@ -66,49 +52,6 @@
 						autocomplete="off"
 						required
 					/>
-				</div>
-
-				<div class="flex flex-col w-full mt-3">
-					<div class="mb-1 text-xs text-gray-500">{$i18n.t('Workspace')}</div>
-					<input
-						class="w-full text-sm bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-700 outline-hidden"
-						type="text"
-						bind:value={workspace}
-						placeholder="/workspace/..."
-						autocomplete="off"
-						on:input={() => {
-							if (workspace.trim()) showWorkspaceError = false;
-						}}
-						required
-					/>
-					<div class="mt-1 text-xs text-gray-500">La workspace deve stare sotto <code>/workspace</code>.</div>
-					{#if showWorkspaceError}
-						<div class="mt-1 text-xs text-red-600 dark:text-red-400">Workspace is required.</div>
-					{/if}
-				</div>
-
-				<div class="grid gap-3 mt-3 md:grid-cols-2">
-					<div class="flex flex-col w-full">
-						<div class="mb-1 text-xs text-gray-500">{$i18n.t('Emoji')}</div>
-						<input
-							class="w-full text-sm bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-700 outline-hidden"
-							type="text"
-							bind:value={emoji}
-							placeholder="🤖"
-							autocomplete="off"
-						/>
-					</div>
-
-					<div class="flex flex-col w-full">
-						<div class="mb-1 text-xs text-gray-500">{$i18n.t('Avatar URL')}</div>
-						<input
-							class="w-full text-sm bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-700 outline-hidden"
-							type="text"
-							bind:value={avatar}
-							placeholder="https://..."
-							autocomplete="off"
-						/>
-					</div>
 				</div>
 
 				<div class="flex justify-end mt-5">

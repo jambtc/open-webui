@@ -135,9 +135,8 @@ import { getAgents, type AgentItem } from '$lib/apis/agents';
 	let eventCallback = null;
 
 	let selectedModels = [''];
-	let selectedAgentId = 'main';
+	let selectedAgentId = '';
 	let availableAgents: AgentItem[] = [];
-	let defaultAgentId: string | null = null;
 	let atSelectedModel: Model | undefined;
 	let selectedModelIds = [];
 	$: if (atSelectedModel !== undefined) {
@@ -255,9 +254,7 @@ import { getAgents, type AgentItem } from '$lib/apis/agents';
 		saveSessionSelectedModels();
 	}
 
-	$: if (selectedAgentId) {
-		saveSessionSelectedAgentId();
-	}
+	$: saveSessionSelectedAgentId();
 
 	const saveSessionSelectedModels = () => {
 		const selectedModelsString = JSON.stringify(selectedModels);
@@ -273,24 +270,32 @@ import { getAgents, type AgentItem } from '$lib/apis/agents';
 	};
 
 	const saveSessionSelectedAgentId = () => {
-		if (!selectedAgentId || sessionStorage.selectedAgentId === selectedAgentId) {
+		const current = (selectedAgentId ?? '').trim();
+		const stored = (sessionStorage.selectedAgentId ?? '').trim();
+
+		if (current === stored) {
 			return;
 		}
-		sessionStorage.selectedAgentId = selectedAgentId;
+
+		if (!current) {
+			sessionStorage.removeItem('selectedAgentId');
+			return;
+		}
+
+		sessionStorage.selectedAgentId = current;
 	};
 
 	const loadAgents = async () => {
 		const res = await getAgents(localStorage.token);
 		availableAgents = res?.items ?? [];
-		defaultAgentId = res?.default_agent_id ?? null;
 
 		if (availableAgents.length > 0) {
 			const availableAgentIds = availableAgents.map((agent) => agent.agent_id);
-			if (!selectedAgentId || !availableAgentIds.includes(selectedAgentId)) {
-				selectedAgentId = defaultAgentId ?? availableAgents[0].agent_id;
+			if (selectedAgentId && !availableAgentIds.includes(selectedAgentId)) {
+				selectedAgentId = '';
 			}
-		} else if (!selectedAgentId) {
-			selectedAgentId = defaultAgentId ?? 'main';
+		} else {
+			selectedAgentId = '';
 		}
 	};
 
@@ -1172,19 +1177,17 @@ import { getAgents, type AgentItem } from '$lib/apis/agents';
 		} else if (sessionStorage.selectedAgentId) {
 			selectedAgentId = sessionStorage.selectedAgentId;
 			sessionStorage.removeItem('selectedAgentId');
-		} else if (defaultAgentId) {
-			selectedAgentId = defaultAgentId;
-		} else if (availableAgents.length > 0) {
-			selectedAgentId = availableAgents[0].agent_id;
 		} else {
-			selectedAgentId = 'main';
+			selectedAgentId = '';
 		}
 
 		if (availableAgents.length > 0) {
 			const availableAgentIds = availableAgents.map((agent) => agent.agent_id);
-			if (!availableAgentIds.includes(selectedAgentId)) {
-				selectedAgentId = defaultAgentId ?? availableAgents[0].agent_id;
+			if (selectedAgentId && !availableAgentIds.includes(selectedAgentId)) {
+				selectedAgentId = '';
 			}
+		} else {
+			selectedAgentId = '';
 		}
 
 		if ($mobile) {
@@ -1313,12 +1316,14 @@ import { getAgents, type AgentItem } from '$lib/apis/agents';
 
 				oldSelectedModelIds = structuredClone(selectedModels);
 
-				selectedAgentId = chatContent?.agent_id ?? defaultAgentId ?? availableAgents[0]?.agent_id ?? 'main';
+				selectedAgentId = (chatContent?.agent_id ?? '').trim();
 				if (availableAgents.length > 0) {
 					const availableAgentIds = availableAgents.map((agent) => agent.agent_id);
-					if (!availableAgentIds.includes(selectedAgentId)) {
-						selectedAgentId = defaultAgentId ?? availableAgents[0].agent_id;
+					if (selectedAgentId && !availableAgentIds.includes(selectedAgentId)) {
+						selectedAgentId = '';
 					}
+				} else {
+					selectedAgentId = '';
 				}
 
 				history =
@@ -1398,10 +1403,10 @@ import { getAgents, type AgentItem } from '$lib/apis/agents';
 	};
 
 	const chatCompletedHandler = async (_chatId, modelId, responseMessageId, messages) => {
-		const res = await chatCompleted(localStorage.token, {
-			model: modelId,
-			agent_id: selectedAgentId,
-			messages: messages.map((m) => ({
+			const res = await chatCompleted(localStorage.token, {
+				model: modelId,
+				...(selectedAgentId ? { agent_id: selectedAgentId } : {}),
+				messages: messages.map((m) => ({
 				id: m.id,
 				role: m.role,
 				content: m.content,
@@ -1442,10 +1447,10 @@ import { getAgents, type AgentItem } from '$lib/apis/agents';
 
 		if ($chatId == _chatId) {
 			if (!$temporaryChatEnabled) {
-				chat = await updateChatById(localStorage.token, _chatId, {
-					models: selectedModels,
-					agent_id: selectedAgentId,
-					messages: messages,
+					chat = await updateChatById(localStorage.token, _chatId, {
+						models: selectedModels,
+						...(selectedAgentId ? { agent_id: selectedAgentId } : {}),
+						messages: messages,
 					history: history,
 					params: params,
 					files: chatFiles
@@ -1498,10 +1503,10 @@ import { getAgents, type AgentItem } from '$lib/apis/agents';
 
 		if ($chatId == _chatId) {
 			if (!$temporaryChatEnabled) {
-				chat = await updateChatById(localStorage.token, _chatId, {
-					models: selectedModels,
-					agent_id: selectedAgentId,
-					messages: messages,
+					chat = await updateChatById(localStorage.token, _chatId, {
+						models: selectedModels,
+						...(selectedAgentId ? { agent_id: selectedAgentId } : {}),
+						messages: messages,
 					history: history,
 					params: params,
 					files: chatFiles
@@ -2303,8 +2308,8 @@ import { getAgents, type AgentItem } from '$lib/apis/agents';
 					stop: getStopTokens()
 				},
 
-				files: (files?.length ?? 0) > 0 ? files : undefined,
-				agent_id: selectedAgentId,
+					files: (files?.length ?? 0) > 0 ? files : undefined,
+					...(selectedAgentId ? { agent_id: selectedAgentId } : {}),
 
 				filter_ids: selectedFilterIds.length > 0 ? selectedFilterIds : undefined,
 				tool_ids: toolIds.length > 0 ? toolIds : undefined,
@@ -2635,12 +2640,12 @@ import { getAgents, type AgentItem } from '$lib/apis/agents';
 		if (!$temporaryChatEnabled) {
 			chat = await createNewChat(
 				localStorage.token,
-				{
-					id: _chatId,
-					title: $i18n.t('New Chat'),
-					models: selectedModels,
-						agent_id: selectedAgentId,
-					system: $settings.system ?? undefined,
+					{
+						id: _chatId,
+						title: $i18n.t('New Chat'),
+						models: selectedModels,
+						...(selectedAgentId ? { agent_id: selectedAgentId } : {}),
+						system: $settings.system ?? undefined,
 					params: params,
 					history: history,
 					messages: createMessagesList(history, history.currentId),
@@ -2673,10 +2678,10 @@ import { getAgents, type AgentItem } from '$lib/apis/agents';
 	const saveChatHandler = async (_chatId, history) => {
 		if ($chatId == _chatId) {
 			if (!$temporaryChatEnabled) {
-				chat = await updateChatById(localStorage.token, _chatId, {
-					models: selectedModels,
-					agent_id: selectedAgentId,
-					history: history,
+					chat = await updateChatById(localStorage.token, _chatId, {
+						models: selectedModels,
+						...(selectedAgentId ? { agent_id: selectedAgentId } : {}),
+						history: history,
 					messages: createMessagesList(history, history.currentId),
 					params: params,
 					files: chatFiles
@@ -2841,14 +2846,14 @@ import { getAgents, type AgentItem } from '$lib/apis/agents';
 								const title =
 									messages.find((m) => m.role === 'user')?.content ?? $i18n.t('New Chat');
 
-								const savedChat = await createNewChat(
-									localStorage.token,
-									{
-										id: uuidv4(),
-										title: title.length > 50 ? `${title.slice(0, 50)}...` : title,
-										models: selectedModels,
-										agent_id: selectedAgentId,
-										params: params,
+									const savedChat = await createNewChat(
+										localStorage.token,
+										{
+											id: uuidv4(),
+											title: title.length > 50 ? `${title.slice(0, 50)}...` : title,
+											models: selectedModels,
+											...(selectedAgentId ? { agent_id: selectedAgentId } : {}),
+											params: params,
 										history: history,
 										messages: messages,
 										timestamp: Date.now()

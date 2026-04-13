@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 from urllib.parse import urlencode
 
 import aiohttp
@@ -12,6 +13,18 @@ log = logging.getLogger(__name__)
 
 router = APIRouter()
 OPENCLAW_OPENAI_PROXY = os.environ.get('OPENCLAW_OPENAI_PROXY', '').rstrip('/')
+
+
+def _derive_workspace_from_name(name: str) -> str:
+    normalized = re.sub(r'[^a-zA-Z0-9._-]+', '-', (name or '').strip().lower()).strip('._-')
+    if not normalized:
+        normalized = 'agent'
+    return normalized
+
+
+def _is_workspace_missing_error(payload: object) -> bool:
+    text = str(payload).lower()
+    return 'workspace' in text and ('required' in text or 'missing' in text)
 
 
 async def _apply_request_authorization(headers: dict, request: Request, user) -> dict:
@@ -75,6 +88,8 @@ async def create_agent(request: Request, user=Depends(get_verified_user)):
         body = await request.json()
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f'Invalid JSON body: {exc}')
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail='JSON body must be an object')
 
     upstream_url = f"{OPENCLAW_OPENAI_PROXY}/api/v1/agents"
 
@@ -82,6 +97,17 @@ async def create_agent(request: Request, user=Depends(get_verified_user)):
         async with aiohttp.ClientSession() as session:
             async with session.post(upstream_url, json=body, headers=headers) as response:
                 payload = await response.json(content_type=None)
+                if response.status == 422 and _is_workspace_missing_error(payload):
+                    fallback_body = dict(body)
+                    fallback_body['workspace'] = _derive_workspace_from_name(str(body.get('name') or ''))
+                    log.warning(
+                        'BOXEDAI create fallback: retrying with derived workspace=%s user_id=%s',
+                        fallback_body['workspace'],
+                        getattr(user, 'id', None),
+                    )
+                    async with session.post(upstream_url, json=fallback_body, headers=headers) as retry_response:
+                        retry_payload = await retry_response.json(content_type=None)
+                        return JSONResponse(content=retry_payload, status_code=retry_response.status)
                 return JSONResponse(content=payload, status_code=response.status)
     except aiohttp.ClientResponseError as exc:
         log.exception('Create agent proxy upstream response error: %s', exc)
@@ -113,7 +139,11 @@ async def get_agents(request: Request, user=Depends(get_verified_user)):
                         payload.get('default_agent_id'),
                     )
                 else:
-                    log.info('BOXEDAI agents list upstream_status=%s payload_type=%s', response.status, type(payload).__name__)
+                    log.info(
+                        'BOXEDAI agents list upstream_status=%s payload_type=%s',
+                        response.status,
+                        type(payload).__name__,
+                    )
                 return JSONResponse(content=payload, status_code=response.status)
     except aiohttp.ClientResponseError as exc:
         log.exception('Agents proxy upstream response error: %s', exc)
@@ -149,7 +179,11 @@ async def get_agent_detail(agent_id: str, request: Request, user=Depends(get_ver
                         payload.get('default_agent_id'),
                     )
                 else:
-                    log.info('BOXEDAI agents list upstream_status=%s payload_type=%s', response.status, type(payload).__name__)
+                    log.info(
+                        'BOXEDAI agents list upstream_status=%s payload_type=%s',
+                        response.status,
+                        type(payload).__name__,
+                    )
                 return JSONResponse(content=payload, status_code=response.status)
     except aiohttp.ClientResponseError as exc:
         log.exception('Agent detail proxy upstream response error: %s', exc)
@@ -185,7 +219,11 @@ async def get_agent_knowledge_tree(agent_id: str, request: Request, user=Depends
                         payload.get('default_agent_id'),
                     )
                 else:
-                    log.info('BOXEDAI agents list upstream_status=%s payload_type=%s', response.status, type(payload).__name__)
+                    log.info(
+                        'BOXEDAI agents list upstream_status=%s payload_type=%s',
+                        response.status,
+                        type(payload).__name__,
+                    )
                 return JSONResponse(content=payload, status_code=response.status)
     except aiohttp.ClientResponseError as exc:
         log.exception('Agent knowledge tree proxy upstream response error: %s', exc)
