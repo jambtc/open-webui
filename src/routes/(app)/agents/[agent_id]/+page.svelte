@@ -220,15 +220,8 @@
 	const waitForUpdatedAgent = async (payload: UpdateAgentPayload, maxAttempts = 8, delayMs = 250) => {
 		for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
 			const currentAgent = await getAgentById(localStorage.token, $page.params.agent_id);
-			const currentWorkspace = getAgentWorkspace(currentAgent);
-			const currentAvatar =
-				typeof currentAgent?.identity?.avatar_url === 'string' ? currentAgent.identity.avatar_url.trim() : '';
 
-			const matches =
-				(payload.name === undefined || (currentAgent.name ?? '') === payload.name) &&
-				(payload.workspace === undefined || currentWorkspace === payload.workspace) &&
-				(payload.model === undefined || (currentAgent.model ?? '') === payload.model) &&
-				(payload.avatar === undefined || currentAvatar === payload.avatar);
+			const matches = payload.name === undefined || (currentAgent.name ?? '') === payload.name;
 
 			if (matches) {
 				agent = currentAgent;
@@ -430,25 +423,7 @@
 					</div>
 				</div>
 
-				<div class="grid gap-4 md:grid-cols-2">
-					<div class="rounded-2xl border border-gray-200 bg-white px-5 py-4 dark:border-gray-800 dark:bg-gray-900">
-						<div class="text-sm font-medium text-gray-900 dark:text-gray-100">Summary</div>
-						<dl class="mt-3 space-y-2 text-sm">
-							<div>
-								<dt class="text-gray-500 dark:text-gray-400">Workspace</dt>
-								<dd class="text-gray-900 dark:text-gray-100">{getAgentWorkspace(agent) || 'n/a'}</dd>
-							</div>
-							<div>
-								<dt class="text-gray-500 dark:text-gray-400">Model</dt>
-								<dd class="text-gray-900 dark:text-gray-100">{agent.model ?? 'n/a'}</dd>
-							</div>
-							<div>
-								<dt class="text-gray-500 dark:text-gray-400">Fallbacks</dt>
-								<dd class="text-gray-900 dark:text-gray-100">{agent.model_fallbacks?.join(', ') ?? 'n/a'}</dd>
-							</div>
-						</dl>
-					</div>
-
+				<div class="grid gap-4">
 					<div class="rounded-2xl border border-gray-200 bg-white px-5 py-4 dark:border-gray-800 dark:bg-gray-900">
 						<div class="text-sm font-medium text-gray-900 dark:text-gray-100">Identity</div>
 						{#if agent.identity}
@@ -643,46 +618,60 @@
 	bind:show={showEditAgentModal}
 	loading={editLoading}
 	initialName={agent?.name ?? ''}
-	initialWorkspace={getAgentWorkspace(agent)}
-	initialModel={agent?.model ?? ''}
-	initialAvatar={typeof agent?.identity?.avatar_url === 'string' ? agent.identity.avatar_url : ''}
 	onSubmit={updateAgentHandler}
 />
 
 <Modal size="lg" bind:show={showKnowledgePreviewModal}>
-	<div class="flex items-center justify-between gap-4">
-		<div>
-			<div class="text-lg font-semibold text-gray-900 dark:text-gray-100">
-				{knowledgePreview?.filename ?? 'Knowledge File'}
+	<div class="space-y-4">
+		<div class="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+			<div class="border-b border-gray-200 bg-gray-50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-400">
+				File
 			</div>
-			{#if knowledgePreview}
-				<div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-					{knowledgePreview.path}
+			<div class="space-y-2 px-4 py-3">
+				<div class="pl-1 text-lg font-semibold text-gray-900 break-words dark:text-gray-100">
+					{knowledgePreview?.filename ?? 'Knowledge File'}
 				</div>
-			{/if}
+				{#if knowledgePreview}
+					<div class="rounded-lg bg-gray-50 px-3 py-2 dark:bg-gray-950">
+						<div class="font-mono text-xs text-gray-600 break-all dark:text-gray-300">
+							{knowledgePreview.path}
+						</div>
+					</div>
+				{/if}
+			</div>
 		</div>
-	</div>
 
-	<div class="mt-4 space-y-2 text-sm">
 		{#if knowledgePreview}
-			<div>
-				<span class="text-gray-500 dark:text-gray-400">Mime:</span>
-				<span class="ml-2 text-gray-900 dark:text-gray-100">{knowledgePreview.mime_type}</span>
-			</div>
-			<div>
-				<span class="text-gray-500 dark:text-gray-400">Size:</span>
-				<span class="ml-2 text-gray-900 dark:text-gray-100">{formatBytes(knowledgePreview.size_bytes)}</span>
+			<div class="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+				<div class="border-b border-gray-200 bg-gray-50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-400">
+					Metadata
+				</div>
+				<div class="grid gap-3 px-4 py-3 text-sm md:grid-cols-2">
+					<div class="rounded-lg bg-gray-50 px-3 py-2 dark:bg-gray-950">
+						<div class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Mime</div>
+						<div class="mt-1 text-gray-900 break-all dark:text-gray-100">{knowledgePreview.mime_type}</div>
+					</div>
+					<div class="rounded-lg bg-gray-50 px-3 py-2 dark:bg-gray-950">
+						<div class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Size</div>
+						<div class="mt-1 text-gray-900 dark:text-gray-100">{formatBytes(knowledgePreview.size_bytes)}</div>
+					</div>
+				</div>
 			</div>
 		{/if}
-	</div>
 
-	<div class="mt-4">
-		{#if knowledgePreview && knowledgePreview.content_text !== null}
-			<pre class="max-h-[60vh] overflow-auto rounded-xl bg-gray-50 p-4 text-xs text-gray-700 dark:bg-gray-950 dark:text-gray-300">{knowledgePreview.content_text}</pre>
-		{:else if knowledgePreview}
-			<div class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300">
-				Binary file preview is not available. Use Download instead.
+		<div class="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+			<div class="border-b border-gray-200 bg-gray-50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-400">
+				Preview
 			</div>
-		{/if}
+			<div class="px-4 py-3">
+				{#if knowledgePreview && knowledgePreview.content_text !== null}
+					<pre class="max-h-[60vh] overflow-auto rounded-xl bg-gray-50 p-4 text-xs leading-5 text-gray-700 dark:bg-gray-950 dark:text-gray-300">{knowledgePreview.content_text}</pre>
+				{:else if knowledgePreview}
+					<div class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300">
+						Binary file preview is not available. Use Download instead.
+					</div>
+				{/if}
+			</div>
+		</div>
 	</div>
 </Modal>

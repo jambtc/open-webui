@@ -94,9 +94,6 @@ export const getAgentById = async (
 
 export type CreateAgentPayload = {
 	name: string;
-	workspace: string;
-	emoji?: string | null;
-	avatar?: string | null;
 };
 
 export type AgentCreateResponse = {
@@ -137,9 +134,6 @@ export const createAgent = async (
 
 export type UpdateAgentPayload = {
 	name?: string;
-	workspace?: string;
-	model?: string;
-	avatar?: string;
 };
 
 export type AgentUpdateResponse = {
