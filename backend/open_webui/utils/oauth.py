@@ -27,6 +27,8 @@ from starlette.responses import RedirectResponse
 from typing import Optional
 
 
+
+
 from open_webui.models.auths import Auths
 from open_webui.models.oauth_sessions import OAuthSessions
 from open_webui.models.users import Users
@@ -109,6 +111,19 @@ from open_webui.env import GLOBAL_LOG_LEVEL
 
 logging.basicConfig(stream=sys.stdout, level=GLOBAL_LOG_LEVEL)
 log = logging.getLogger(__name__)
+
+
+
+def _token_debug_summary(token: Optional[dict]) -> dict:
+    token = token or {}
+    return {
+        'keys': sorted(token.keys()),
+        'has_access_token': bool(token.get('access_token')),
+        'has_id_token': bool(token.get('id_token')),
+        'has_refresh_token': bool(token.get('refresh_token')),
+        'expires_at': token.get('expires_at'),
+        'expires_in': token.get('expires_in'),
+    }
 
 auth_manager_config = AppConfig()
 auth_manager_config.DEFAULT_USER_ROLE = DEFAULT_USER_ROLE
@@ -1626,6 +1641,15 @@ class OAuthManager:
         expires_delta = parse_duration(auth_manager_config.JWT_EXPIRES_IN)
         cookie_max_age = int(expires_delta.total_seconds()) if expires_delta else None
 
+        log.info(
+            'OAuth callback success provider=%s user_id=%s token_summary=%s cookie_secure=%s cookie_samesite=%s',
+            provider,
+            user.id,
+            _token_debug_summary(token),
+            WEBUI_AUTH_COOKIE_SECURE,
+            WEBUI_AUTH_COOKIE_SAME_SITE,
+        )
+
         # Set the cookie token
         # Redirect back to the frontend with the JWT token
         response.set_cookie(
@@ -1636,6 +1660,7 @@ class OAuthManager:
             secure=WEBUI_AUTH_COOKIE_SECURE,
             **({'max_age': cookie_max_age} if cookie_max_age is not None else {}),
         )
+        log.info('OAuth callback set cookie token user_id=%s', user.id)
 
         # Legacy cookies for compatibility with older frontend versions
         if ENABLE_OAUTH_ID_TOKEN_COOKIE:
@@ -1647,6 +1672,13 @@ class OAuthManager:
                 secure=WEBUI_AUTH_COOKIE_SECURE,
                 **({'max_age': cookie_max_age} if cookie_max_age is not None else {}),
             )
+            log.info(
+                'OAuth callback set cookie oauth_id_token user_id=%s has_id_token=%s',
+                user.id,
+                bool(token.get('id_token')),
+            )
+        else:
+            log.info('OAuth callback skipped oauth_id_token cookie user_id=%s because ENABLE_OAUTH_ID_TOKEN_COOKIE=false', user.id)
 
         try:
             # Add timestamp for tracking
@@ -1663,6 +1695,13 @@ class OAuthManager:
                 [session for session in sessions if session.provider == provider],
                 key=lambda session: session.created_at,
                 reverse=True,
+            )
+            log.info(
+                'OAuth callback preparing session storage user_id=%s provider=%s existing_sessions=%s provider_sessions=%s',
+                user.id,
+                provider,
+                len(sessions),
+                len(provider_sessions),
             )
             # Keep the newest sessions up to the limit, prune the rest
             if len(provider_sessions) >= OAUTH_MAX_SESSIONS_PER_USER:
@@ -1683,13 +1722,18 @@ class OAuthManager:
                     httponly=True,
                     samesite=WEBUI_AUTH_COOKIE_SAME_SITE,
                     secure=WEBUI_AUTH_COOKIE_SECURE,
-                    **({'max_age': cookie_max_age, 'expires': cookie_expires} if cookie_max_age is not None else {}),
+                    **({'max_age': cookie_max_age} if cookie_max_age is not None else {}),
                 )
 
-                log.info(f'Stored OAuth session server-side for user {user.id}, provider {provider}')
+                log.info(
+                    'Stored OAuth session server-side for user %s, provider %s, session_id=%s',
+                    user.id,
+                    provider,
+                    session.id,
+                )
             else:
                 log.warning(f'Failed to create OAuth session for user {user.id}, provider {provider}')
         except Exception as e:
-            log.error(f'Failed to store OAuth session server-side: {e}')
+            log.exception(f'Failed to store OAuth session server-side: {e}')
 
         return response

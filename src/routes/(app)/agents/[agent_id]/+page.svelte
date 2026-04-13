@@ -293,10 +293,6 @@
 	};
 
 	onMount(async () => {
-		if ($user?.role !== 'admin') {
-			await goto('/');
-			return;
-		}
 		try {
 			await loadAgent();
 			await loadKnowledgeTree('');

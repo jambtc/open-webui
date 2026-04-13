@@ -2,6 +2,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import os
 import re
 from typing import Optional
 from urllib.parse import urlparse
@@ -58,6 +59,45 @@ from open_webui.utils.misc import (
 
 from open_webui.utils.auth import get_admin_user, get_verified_user
 from open_webui.utils.headers import include_user_info_headers
+
+
+OPENCLAW_OPENAI_PROXY = os.environ.get('OPENCLAW_OPENAI_PROXY', '').rstrip('/')
+
+
+async def _extract_openclaw_bearer_token(request: Request, user: UserModel | None) -> Optional[str]:
+    oauth_session_id = request.cookies.get('oauth_session_id')
+    if oauth_session_id and user is not None:
+        try:
+            oauth_token = await request.app.state.oauth_manager.get_oauth_token(user.id, oauth_session_id)
+            if oauth_token:
+                if oauth_token.get('access_token'):
+                    return str(oauth_token['access_token'])
+                if oauth_token.get('id_token'):
+                    return str(oauth_token['id_token'])
+        except Exception as exc:
+            log.error(f'Error getting OpenClaw OAuth token: {exc}')
+
+    oauth_id_token = request.cookies.get('oauth_id_token')
+    if oauth_id_token:
+        return oauth_id_token
+
+    authorization = request.headers.get('authorization')
+    if authorization:
+        parts = authorization.split(None, 1)
+        if len(parts) == 2 and parts[0].lower() == 'bearer' and parts[1].strip():
+            return parts[1].strip()
+
+    state_token = getattr(request.state, 'token', None)
+    if state_token and getattr(state_token, 'credentials', None) and not request.headers.get('x-api-key'):
+        return str(state_token.credentials)
+
+    return None
+
+
+def _is_openclaw_proxy_target(url: str) -> bool:
+    return bool(OPENCLAW_OPENAI_PROXY and str(url).rstrip('/').startswith(OPENCLAW_OPENAI_PROXY))
+
+
 from open_webui.utils.anthropic import is_anthropic_url, get_anthropic_models
 
 log = logging.getLogger(__name__)
@@ -168,7 +208,11 @@ async def get_headers_and_cookies(
     token = None
     auth_type = config.get('auth_type')
 
-    if auth_type == 'bearer' or auth_type is None:
+    if _is_openclaw_proxy_target(url):
+        token = await _extract_openclaw_bearer_token(request, user)
+        if request.cookies:
+            cookies = request.cookies
+    elif auth_type == 'bearer' or auth_type is None:
         # Default to bearer if not specified
         token = f'{key}'
     elif auth_type == 'none':

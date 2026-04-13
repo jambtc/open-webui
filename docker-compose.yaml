@@ -28,6 +28,7 @@ services:
       - WEBUI_URL=${WEBUI_URL}
       - ENABLE_PIPES=true
       - PIPELINES_URL=${OPENCLAW_OPENAI_PROXY:-http://host.docker.internal:4010}
+      - OPENCLAW_OPENAI_PROXY=${OPENCLAW_OPENAI_PROXY:-http://host.docker.internal:4010}
       # environment per keycloak
       - WEBUI_AUTH=${WEBUI_AUTH:-true} # Set to false to disable authentication and use only with OAuth
       - ENABLE_OAUTH_SIGNUP=${ENABLE_OAUTH_SIGNUP:-true} # Set to true to enable OAuth signup
