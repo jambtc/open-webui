@@ -20,17 +20,15 @@
 		getChatPinnedStatusById,
 		toggleChatPinnedStatusById
 	} from '$lib/apis/chats';
-	import { chats, folders, settings, theme, user } from '$lib/stores';
+	import { chats, settings, theme, user } from '$lib/stores';
 	import { createMessagesList } from '$lib/utils';
 	import { downloadChatAsPDF } from '$lib/apis/utils';
 	import Download from '$lib/components/icons/Download.svelte';
-	import Folder from '$lib/components/icons/Folder.svelte';
 	import Messages from '$lib/components/chat/Messages.svelte';
 
 	const i18n = getContext('i18n');
 
 	export let shareHandler: Function;
-	export let moveChatHandler: Function;
 
 	export let cloneChatHandler: Function;
 	export let archiveChatHandler: Function;
@@ -393,37 +391,6 @@
 				<DocumentDuplicate strokeWidth="1.5" />
 				<div class="flex items-center">{$i18n.t('Clone')}</div>
 			</button>
-
-			{#if chatId && $folders.length > 0}
-				<DropdownSub
-					contentClass="select-none rounded-2xl p-1 z-50 bg-white dark:bg-gray-850 dark:text-white border border-gray-100 dark:border-gray-800 shadow-lg max-h-52 overflow-y-auto scrollbar-hidden"
-				>
-					<button
-						slot="trigger"
-						draggable="false"
-						class="flex gap-2 items-center px-3 py-1.5 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-xl select-none w-full"
-					>
-						<Folder />
-						<div class="flex items-center">{$i18n.t('Move')}</div>
-					</button>
-
-					{#each $folders.sort((a, b) => b.updated_at - a.updated_at) as folder}
-						<button
-							draggable="false"
-							class="flex gap-2 items-center px-3 py-1.5 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-xl overflow-hidden w-full"
-							on:click={() => {
-								moveChatHandler(chatId, folder.id);
-							}}
-						>
-							<div class="shrink-0">
-								<Folder />
-							</div>
-
-							<div class="truncate">{folder?.name ?? 'Folder'}</div>
-						</button>
-					{/each}
-				</DropdownSub>
-			{/if}
 
 			<button
 				draggable="false"
