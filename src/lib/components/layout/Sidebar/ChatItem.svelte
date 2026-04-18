@@ -15,8 +15,7 @@
 		getChatList,
 		getChatListByTagName,
 		getPinnedChatList,
-		updateChatById,
-		updateChatFolderIdById
+		updateChatById
 	} from '$lib/apis/chats';
 	import {
 		chatId,
@@ -105,7 +104,7 @@
 			}
 
 			currentChatPage.set(1);
-			await chats.set(await getChatList(localStorage.token, $currentChatPage));
+			await chats.set(await getChatList(localStorage.token, $currentChatPage, false, true));
 			await pinnedChats.set(await getPinnedChatList(localStorage.token));
 
 			dispatch('change');
@@ -128,7 +127,7 @@
 			goto(`/c/${res.id}`);
 
 			currentChatPage.set(1);
-			await chats.set(await getChatList(localStorage.token, $currentChatPage));
+			await chats.set(await getChatList(localStorage.token, $currentChatPage, false, true));
 			await pinnedChats.set(await getPinnedChatList(localStorage.token));
 		}
 	};
@@ -166,29 +165,6 @@
 		} catch (error) {
 			console.error('Error archiving chat:', error);
 			toast.error($i18n.t('Failed to archive chat.'));
-		}
-	};
-
-	const moveChatHandler = async (chatId, folderId) => {
-		if (chatId && folderId) {
-			const res = await updateChatFolderIdById(localStorage.token, chatId, folderId).catch(
-				(error) => {
-					toast.error(`${error}`);
-					return null;
-				}
-			);
-
-			if (res) {
-				currentChatPage.set(1);
-				await chats.set(await getChatList(localStorage.token, $currentChatPage));
-				await pinnedChats.set(await getPinnedChatList(localStorage.token));
-
-				dispatch('change');
-
-				toast.success($i18n.t('Chat moved successfully'));
-			}
-		} else {
-			toast.error($i18n.t('Failed to move chat'));
 		}
 	};
 
@@ -548,7 +524,6 @@
 					shareHandler={() => {
 						showShareChatModal = true;
 					}}
-					{moveChatHandler}
 					archiveChatHandler={() => {
 						archiveChatHandler(id);
 					}}

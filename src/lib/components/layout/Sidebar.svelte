@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { toast } from 'svelte-sonner';
-	import { v4 as uuidv4 } from 'uuid';
 
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
@@ -11,7 +10,6 @@
 		showSettings,
 		chatId,
 		tags,
-		folders as _folders,
 		showSidebar,
 		showSearch,
 		mobile,
@@ -40,10 +38,8 @@
 		getPinnedChatList,
 		toggleChatPinnedStatusById,
 		getChatById,
-		updateChatFolderIdById,
 		importChats
 	} from '$lib/apis/chats';
-	import { createNewFolder, getFolders, updateFolderParentIdById } from '$lib/apis/folders';
 	import { checkActiveChats } from '$lib/apis/tasks';
 	import { WEBUI_API_BASE_URL, WEBUI_BASE_URL } from '$lib/constants';
 
@@ -54,14 +50,12 @@
 	import Loader from '../common/Loader.svelte';
 	import Folder from '../common/Folder.svelte';
 	import Tooltip from '../common/Tooltip.svelte';
-	import Folders from './Sidebar/Folders.svelte';
 	import { getChannels, createNewChannel } from '$lib/apis/channels';
 	import ChannelModal from './Sidebar/ChannelModal.svelte';
 	import ChannelItem from './Sidebar/ChannelItem.svelte';
 	import PencilSquare from '../icons/PencilSquare.svelte';
 	import Search from '../icons/Search.svelte';
 	import SearchModal from './SearchModal.svelte';
-	import FolderModal from './Sidebar/Folders/FolderModal.svelte';
 	import Sidebar from '../icons/Sidebar.svelte';
 	import PinnedModelList from './Sidebar/PinnedModelList.svelte';
 	import Note from '../icons/Note.svelte';
@@ -82,116 +76,10 @@
 	let chatListLoading = false;
 	let allChatsLoaded = false;
 
-	let showCreateFolderModal = false;
-
 	let pinnedModels = [];
 
 	let showPinnedModels = false;
 	let showChannels = false;
-	let showFolders = false;
-
-	let folders = {};
-	let folderRegistry = {};
-
-	let newFolderId = null;
-
-	$: if ($selectedFolder) {
-		initFolders();
-	}
-
-	const initFolders = async () => {
-		if ($config?.features?.enable_folders === false) {
-			return;
-		}
-
-		const folderList = await getFolders(localStorage.token).catch((error) => {
-			return [];
-		});
-		_folders.set(folderList.sort((a, b) => b.updated_at - a.updated_at));
-
-		folders = {};
-
-		// First pass: Initialize all folder entries
-		for (const folder of folderList) {
-			// Ensure folder is added to folders with its data
-			folders[folder.id] = { ...(folders[folder.id] || {}), ...folder };
-
-			if (newFolderId && folder.id === newFolderId) {
-				folders[folder.id].new = true;
-				newFolderId = null;
-			}
-		}
-
-		// Second pass: Tie child folders to their parents
-		for (const folder of folderList) {
-			if (folder.parent_id) {
-				// Ensure the parent folder is initialized if it doesn't exist
-				if (!folders[folder.parent_id]) {
-					folders[folder.parent_id] = {}; // Create a placeholder if not already present
-				}
-
-				// Initialize childrenIds array if it doesn't exist and add the current folder id
-				folders[folder.parent_id].childrenIds = folders[folder.parent_id].childrenIds
-					? [...folders[folder.parent_id].childrenIds, folder.id]
-					: [folder.id];
-
-				// Sort the children by updated_at field
-				folders[folder.parent_id].childrenIds.sort((a, b) => {
-					return folders[b].updated_at - folders[a].updated_at;
-				});
-			}
-		}
-	};
-
-	const createFolder = async ({ name, data, parent_id }) => {
-		name = name?.trim();
-		if (!name) {
-			toast.error($i18n.t('Folder name cannot be empty.'));
-			return;
-		}
-
-		// Check for duplicate names in the same parent
-		const siblings = Object.values(folders).filter((folder) => folder.parent_id === parent_id);
-		if (siblings.find((folder) => folder.name.toLowerCase() === name.toLowerCase())) {
-			// If a folder with the same name already exists, append a number to the name
-			let i = 1;
-			while (
-				siblings.find((folder) => folder.name.toLowerCase() === `${name} ${i}`.toLowerCase())
-			) {
-				i++;
-			}
-
-			name = `${name} ${i}`;
-		}
-
-		// Add a dummy folder to the list to show the user that the folder is being created
-		const tempId = uuidv4();
-		folders = {
-			...folders,
-			[tempId]: {
-				id: tempId,
-				name: name,
-				parent_id: parent_id,
-				created_at: Date.now(),
-				updated_at: Date.now()
-			}
-		};
-
-		const res = await createNewFolder(localStorage.token, {
-			name,
-			data,
-			parent_id
-		}).catch((error) => {
-			toast.error(`${error}`);
-			return null;
-		});
-
-		if (res) {
-			// newFolderId = res.id;
-			await initFolders();
-			showFolders = true;
-		}
-	};
 
 	const initChannels = async () => {
 		// default (none), group, dm type
@@ -216,7 +104,6 @@
 		allChatsLoaded = false;
 		scrollPaginationEnabled.set(false);
 
-		initFolders();
 		await Promise.all([
 			await (async () => {
 				console.log('Init tags');
@@ -230,7 +117,7 @@
 			})(),
 			await (async () => {
 				console.log('Init chat list');
-				const _chats = await getChatList(localStorage.token, $currentChatPage);
+				const _chats = await getChatList(localStorage.token, $currentChatPage, false, true);
 				await chats.set(_chats);
 			})()
 		]);
@@ -246,7 +133,7 @@
 
 		let newChatList = [];
 
-		newChatList = await getChatList(localStorage.token, $currentChatPage);
+		newChatList = await getChatList(localStorage.token, $currentChatPage, false, true);
 
 		// once the bottom of the list has been reached (no results) there is no need to continue querying
 		allChatsLoaded = newChatList.length === 0;
@@ -638,14 +525,6 @@
 			showChannels = true;
 			goto(`/channels/${res.id}`);
 		}
-	}}
-/>
-
-<FolderModal
-	bind:show={showCreateFolderModal}
-	onSubmit={async (folder) => {
-		await createFolder(folder);
-		showCreateFolderModal = false;
 	}}
 />
 
@@ -1165,60 +1044,6 @@
 					</Folder>
 				{/if}
 
-				{#if $config?.features?.enable_folders && ($user?.role === 'admin' || ($user?.permissions?.features?.folders ?? true))}
-					<Folder
-						id="sidebar-folders"
-						bind:open={showFolders}
-						className="px-2 mt-0.5"
-						name={$i18n.t('Folders')}
-						chevron={false}
-						onAdd={() => {
-							showCreateFolderModal = true;
-						}}
-						onAddLabel={$i18n.t('New Folder')}
-						on:drop={async (e) => {
-							const { type, id, item } = e.detail;
-
-							if (type === 'folder') {
-								if (folders[id].parent_id === null) {
-									return;
-								}
-
-								const res = await updateFolderParentIdById(localStorage.token, id, null).catch(
-									(error) => {
-										toast.error(`${error}`);
-										return null;
-									}
-								);
-
-								if (res) {
-									await initFolders();
-								}
-							}
-						}}
-					>
-						<Folders
-							bind:folderRegistry
-							{folders}
-							{shiftKey}
-							onDelete={(folderId) => {
-								selectedFolder.set(null);
-								initChatList();
-							}}
-							on:update={() => {
-								initChatList();
-							}}
-							on:import={(e) => {
-								const { folderId, items } = e.detail;
-								importChatHandler(items, false, folderId);
-							}}
-							on:change={async () => {
-								initChatList();
-							}}
-						/>
-					</Folder>
-				{/if}
-
 				<Folder
 					id="sidebar-chats"
 					className="px-2 mt-0.5"
@@ -1252,37 +1077,11 @@
 
 							if (chat) {
 								console.log(chat);
-								if (chat.folder_id) {
-									const res = await updateChatFolderIdById(localStorage.token, chat.id, null).catch(
-										(error) => {
-											toast.error(`${error}`);
-											return null;
-										}
-									);
-
-									folderRegistry[chat.folder_id]?.setFolderItems();
-								}
-
 								if (chat.pinned) {
 									const res = await toggleChatPinnedStatusById(localStorage.token, chat.id);
 								}
 
 								initChatList();
-							}
-						} else if (type === 'folder') {
-							if (folders[id].parent_id === null) {
-								return;
-							}
-
-							const res = await updateFolderParentIdById(localStorage.token, id, null).catch(
-								(error) => {
-									toast.error(`${error}`);
-									return null;
-								}
-							);
-
-							if (res) {
-								await initFolders();
 							}
 						}
 					}}
@@ -1318,17 +1117,6 @@
 
 											if (chat) {
 												console.log(chat);
-												if (chat.folder_id) {
-													const res = await updateChatFolderIdById(
-														localStorage.token,
-														chat.id,
-														null
-													).catch((error) => {
-														toast.error(`${error}`);
-														return null;
-													});
-												}
-
 												if (!chat.pinned) {
 													const res = await toggleChatPinnedStatusById(localStorage.token, chat.id);
 												}
