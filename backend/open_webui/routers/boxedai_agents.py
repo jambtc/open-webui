@@ -13,6 +13,11 @@ log = logging.getLogger(__name__)
 
 router = APIRouter()
 OPENCLAW_OPENAI_PROXY = os.environ.get('OPENCLAW_OPENAI_PROXY', '').rstrip('/')
+KEYCLOAK_AUTH_SOURCES = {
+    'oauth_session_id.access_token',
+    'oauth_session_id.id_token',
+    'oauth_id_token',
+}
 
 
 def _derive_workspace_from_name(name: str) -> str:
@@ -27,7 +32,12 @@ def _is_workspace_missing_error(payload: object) -> bool:
     return 'workspace' in text and ('required' in text or 'missing' in text)
 
 
-async def _apply_request_authorization(headers: dict, request: Request, user) -> dict:
+async def _apply_request_authorization(
+    headers: dict,
+    request: Request,
+    user,
+    include_source: bool = False,
+) -> dict | tuple[dict, str | None]:
     log.info(
         'BOXEDAI auth cookies user_id=%s cookie_names=%s has_oauth_id_token=%s has_oauth_session_id=%s has_auth_header=%s has_state_token=%s',
         getattr(user, 'id', None),
@@ -46,10 +56,14 @@ async def _apply_request_authorization(headers: dict, request: Request, user) ->
                 if oauth_token.get('access_token'):
                     headers['authorization'] = f"Bearer {oauth_token['access_token']}"
                     log.info('BOXEDAI auth selected source=oauth_session_id.access_token user_id=%s', getattr(user, 'id', None))
+                    if include_source:
+                        return headers, 'oauth_session_id.access_token'
                     return headers
                 if oauth_token.get('id_token'):
                     headers['authorization'] = f"Bearer {oauth_token['id_token']}"
                     log.info('BOXEDAI auth selected source=oauth_session_id.id_token user_id=%s', getattr(user, 'id', None))
+                    if include_source:
+                        return headers, 'oauth_session_id.id_token'
                     return headers
             log.warning('BOXEDAI auth oauth_session_id present but no oauth token resolved user_id=%s', getattr(user, 'id', None))
         except Exception as exc:
@@ -59,22 +73,47 @@ async def _apply_request_authorization(headers: dict, request: Request, user) ->
     if oauth_id_token:
         headers['authorization'] = f'Bearer {oauth_id_token}'
         log.info('BOXEDAI auth selected source=oauth_id_token user_id=%s', getattr(user, 'id', None))
+        if include_source:
+            return headers, 'oauth_id_token'
         return headers
 
     authorization = request.headers.get('authorization')
     if authorization:
         headers['authorization'] = authorization
         log.info('BOXEDAI auth selected source=request.authorization user_id=%s', getattr(user, 'id', None))
+        if include_source:
+            return headers, 'request.authorization'
         return headers
 
     state_token = getattr(request.state, 'token', None)
     if state_token and getattr(state_token, 'credentials', None) and not request.headers.get('x-api-key'):
         headers['authorization'] = f'Bearer {state_token.credentials}'
         log.info('BOXEDAI auth selected source=request.state.token user_id=%s', getattr(user, 'id', None))
+        if include_source:
+            return headers, 'request.state.token'
         return headers
 
     log.warning('BOXEDAI auth no bearer source resolved user_id=%s', getattr(user, 'id', None))
+    if include_source:
+        return headers, None
     return headers
+
+
+@router.get('/agents/auth-capability')
+async def get_agents_auth_capability(request: Request, user=Depends(get_verified_user)):
+    _, source = await _apply_request_authorization(
+        {'Accept': 'application/json'},
+        request,
+        user,
+        include_source=True,
+    )
+    return JSONResponse(
+        content={
+            'can_forward_keycloak_jwt': source in KEYCLOAK_AUTH_SOURCES,
+            'authorization_source': source,
+        },
+        status_code=200,
+    )
 
 
 @router.post('/agents')
@@ -386,7 +425,7 @@ async def download_agent_knowledge_file(agent_id: str, request: Request, user=De
     if not OPENCLAW_OPENAI_PROXY:
         raise HTTPException(status_code=500, detail='OPENCLAW_OPENAI_PROXY is not configured')
 
-    headers = _apply_request_authorization({'Accept': '*/*'}, request)
+    headers = await _apply_request_authorization({'Accept': '*/*'}, request, user)
 
     item_path = request.query_params.get('path', '')
     if not item_path:

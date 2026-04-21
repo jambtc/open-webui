@@ -21,7 +21,6 @@
 	import { goto } from '$app/navigation';
 
 	import ShareChatModal from '../chat/ShareChatModal.svelte';
-	import ModelSelector from '../chat/ModelSelector.svelte';
 	import Tooltip from '../common/Tooltip.svelte';
 	import Menu from '$lib/components/layout/Navbar/Menu.svelte';
 	import UserMenu from '$lib/components/layout/Sidebar/UserMenu.svelte';
@@ -49,6 +48,8 @@
 	export let chat;
 	export let history;
 	export let selectedModels;
+	export let selectedAgentId = '';
+	export let availableAgents = [];
 	export let showModelSelector = true;
 
 	export let onSaveTempChat: () => {};
@@ -112,7 +113,30 @@
 			"
 				>
 					{#if showModelSelector}
-						<ModelSelector bind:selectedModels showSetDefault={!shareEnabled} />
+						{#if availableAgents.length > 0}
+							<div class="ml-1 flex items-center gap-2 min-w-0">
+								<span class="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{$i18n.t('Agent')}</span>
+								<select
+									class="max-w-56 rounded-lg border border-gray-200 bg-white px-2 py-1 text-sm text-gray-700 outline-hidden focus:border-blue-500 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-100"
+									bind:value={selectedAgentId}
+								>
+									{#each availableAgents as agent (agent.agent_id)}
+										<option value={agent.agent_id}>
+											{agent.name ?? agent.agent_id}
+										</option>
+									{/each}
+								</select>
+							</div>
+						{:else}
+							<div class="ml-1 flex items-center gap-2 min-w-0">
+								<span class="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{$i18n.t('Agent')}</span>
+								<span
+									class="max-w-56 rounded-lg border border-gray-200 bg-white px-2 py-1 text-sm text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-100"
+								>
+									default
+								</span>
+							</div>
+						{/if}
 					{/if}
 				</div>
 

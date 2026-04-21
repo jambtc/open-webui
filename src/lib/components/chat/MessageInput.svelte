@@ -1626,17 +1626,24 @@
 
 									<div class="ml-2 flex items-center gap-2 min-w-0">
 										<span class="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{$i18n.t('Agent')}</span>
-										<select
-											class="max-w-40 rounded-lg border border-gray-200 bg-white px-2 py-1 text-sm text-gray-700 outline-hidden focus:border-blue-500 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-100"
-											bind:value={selectedAgentId}
-										>
-											<option value="">default</option>
-											{#each availableAgents as agent (agent.agent_id)}
-												<option value={agent.agent_id}>
-													{agent.name ?? agent.agent_id}
-												</option>
-											{/each}
-										</select>
+										{#if availableAgents.length > 0}
+											<select
+												class="max-w-40 rounded-lg border border-gray-200 bg-white px-2 py-1 text-sm text-gray-700 outline-hidden focus:border-blue-500 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-100"
+												bind:value={selectedAgentId}
+											>
+												{#each availableAgents as agent (agent.agent_id)}
+													<option value={agent.agent_id}>
+														{agent.name ?? agent.agent_id}
+													</option>
+												{/each}
+											</select>
+										{:else}
+											<span
+												class="max-w-40 rounded-lg border border-gray-200 bg-white px-2 py-1 text-sm text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-100"
+											>
+												default
+											</span>
+										{/if}
 									</div>
 
 									{#if showWebSearchButton || showImageGenerationButton || showCodeInterpreterButton || showToolsButton || (toggleFilters && toggleFilters.length > 0)}

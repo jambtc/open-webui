@@ -170,7 +170,7 @@
 					<div>
 						<h1 class="text-xl font-semibold text-gray-900 dark:text-gray-100">{$i18n.t('Agents')}</h1>
 						<p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-							Lista agenti esposta dal backend tramite gateway.
+							Lista agenti
 						</p>
 					</div>
 					<button

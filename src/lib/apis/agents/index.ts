@@ -28,6 +28,37 @@ export type AgentsListResponse = {
 	items: AgentItem[];
 };
 
+export type AgentsAuthCapabilityResponse = {
+	can_forward_keycloak_jwt: boolean;
+	authorization_source: string | null;
+};
+
+export const getAgentsAuthCapability = async (
+	_token: string = ''
+): Promise<AgentsAuthCapabilityResponse> => {
+	let error = null;
+
+	const res = await authFetch(`${WEBUI_API_BASE_URL}/boxedai/agents/auth-capability`, {
+		method: 'GET',
+		headers: jsonHeaders
+	})
+		.then(async (res) => {
+			if (!res.ok) throw await res.json();
+			return res.json();
+		})
+		.catch((err) => {
+			error = err?.detail ?? err;
+			console.error(err);
+			return null;
+		});
+
+	if (error) {
+		throw error;
+	}
+
+	return res;
+};
+
 export const getAgents = async (_token: string = ''): Promise<AgentsListResponse> => {
 	let error = null;
 
