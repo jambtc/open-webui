@@ -1613,7 +1613,7 @@
 				role: 'assistant',
 				content: `[RESPONSE] ${responseMessageId}`,
 				done: true,
-
+				...(selectedAgentId ? { agent_id: selectedAgentId } : {}),
 				model: modelId,
 				modelName: model.name ?? model.id,
 				modelIdx: 0,
@@ -1674,6 +1674,7 @@
 					parentId: currentParentId,
 					childrenIds: [],
 					done: true,
+					...(selectedAgentId ? { agent_id: selectedAgentId } : {}),
 					model: model.id,
 					modelName: model.name ?? model.id,
 					modelIdx: 0,
@@ -2060,6 +2061,7 @@
 					childrenIds: [],
 					role: 'assistant',
 					content: '',
+					...(selectedAgentId ? { agent_id: selectedAgentId } : {}),
 					model: model.id,
 					modelName: model.name ?? model.id,
 					modelIdx: modelIdx ? modelIdx : _modelIdx,
@@ -2950,6 +2952,8 @@
 										bind:history
 										bind:autoScroll
 										bind:prompt
+										{selectedAgentId}
+										{availableAgents}
 										setInputText={(text) => {
 											messageInput?.setText(text);
 										}}

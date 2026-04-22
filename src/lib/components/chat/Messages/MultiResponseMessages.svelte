@@ -26,6 +26,8 @@
 	export let history;
 	export let messageId;
 	export let selectedModels = [];
+	export let selectedAgentId = '';
+	export let availableAgents = [];
 
 	export let isLastMessage;
 	export let readOnly = false;
@@ -298,6 +300,8 @@
 									{history}
 									messageId={message?.id}
 									{selectedModels}
+									{selectedAgentId}
+									{availableAgents}
 									isLastMessage={true}
 									siblings={groupedMessageIds[selectedModelIdx].messageIds}
 									gotoMessage={(message, messageIdx) => gotoMessage(selectedModelIdx, messageIdx)}
@@ -354,6 +358,8 @@
 										{history}
 										messageId={_messageId}
 										{selectedModels}
+										{selectedAgentId}
+										{availableAgents}
 										isLastMessage={true}
 										siblings={groupedMessageIds[modelIdx].messageIds}
 										gotoMessage={(message, messageIdx) => gotoMessage(modelIdx, messageIdx)}

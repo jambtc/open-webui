@@ -14,6 +14,8 @@
 
 	export let chatId;
 	export let selectedModels = [];
+	export let selectedAgentId = '';
+	export let availableAgents = [];
 	export let idx = 0;
 
 	export let history;
@@ -79,6 +81,8 @@
 				{history}
 				{messageId}
 				{selectedModels}
+				{selectedAgentId}
+				{availableAgents}
 				isLastMessage={messageId === history.currentId}
 				siblings={history.messages[history.messages[messageId].parentId]?.childrenIds ?? []}
 				{setInputText}
@@ -106,6 +110,8 @@
 					{chatId}
 					{messageId}
 					{selectedModels}
+					{selectedAgentId}
+					{availableAgents}
 					isLastMessage={messageId === history?.currentId}
 					{setInputText}
 					{updateChat}

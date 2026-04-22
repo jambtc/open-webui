@@ -66,6 +66,7 @@
 	interface MessageType {
 		id: string;
 		model: string;
+		agent_id?: string;
 		content: string;
 		files?: { type: string; url: string }[];
 		timestamp: number;
@@ -118,6 +119,8 @@
 	export let history;
 	export let messageId;
 	export let selectedModels = [];
+	export let selectedAgentId = '';
+	export let availableAgents: { agent_id: string; name?: string | null }[] = [];
 
 	let message: MessageType = structuredClone(history.messages[messageId]);
 	$: if (history.messages) {
@@ -167,6 +170,13 @@
 
 	let model = null;
 	$: model = $models.find((m) => m.id === message.model);
+
+	$: effectiveAgentId = (message?.agent_id ?? '').trim() || (selectedAgentId ?? '').trim();
+	$: effectiveAgent = availableAgents.find((agent) => agent.agent_id === effectiveAgentId);
+	$: displaySenderName =
+		(message?.model ?? '').startsWith('openclaw:') && effectiveAgentId
+			? (effectiveAgent?.name ?? effectiveAgentId)
+			: (model?.name ?? message.model);
 
 	$: statusEntries = message?.statusHistory ?? [...(message?.status ? [message?.status] : [])];
 	$: hasVisibleStatus =
@@ -637,9 +647,9 @@
 
 		<div class="flex-auto w-0 pl-1 relative">
 			<Name>
-				<Tooltip content={model?.name ?? message.model} placement="top-start">
+				<Tooltip content={displaySenderName} placement="top-start">
 					<span id="response-message-model-name" class="line-clamp-1 text-black dark:text-white">
-						{model?.name ?? message.model}
+						{displaySenderName}
 					</span>
 				</Tooltip>
 

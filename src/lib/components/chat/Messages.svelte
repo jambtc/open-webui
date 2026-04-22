@@ -32,6 +32,8 @@
 	export let prompt;
 	export let history = {};
 	export let selectedModels;
+	export let selectedAgentId = '';
+	export let availableAgents = [];
 	export let atSelectedModel;
 
 	let messages = [];
@@ -470,6 +472,8 @@
 								{chatId}
 								bind:history
 								{selectedModels}
+								{selectedAgentId}
+								{availableAgents}
 								messageId={message.id}
 								idx={messageIdx}
 								{user}
