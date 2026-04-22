@@ -107,7 +107,12 @@
 	import Sidebar from '../icons/Sidebar.svelte';
 	import Image from '../common/Image.svelte';
 	import { getBanners } from '$lib/apis/configs';
-import { getAgents, type AgentItem } from '$lib/apis/agents';
+	import {
+		createAgent,
+		getAgents,
+		getAgentsAuthCapability,
+		type AgentItem
+	} from '$lib/apis/agents';
 
 	export let chatIdProp = '';
 
@@ -137,6 +142,7 @@ import { getAgents, type AgentItem } from '$lib/apis/agents';
 	let selectedModels = [''];
 	let selectedAgentId = '';
 	let availableAgents: AgentItem[] = [];
+	let defaultAgentId = '';
 	let atSelectedModel: Model | undefined;
 	let selectedModelIds = [];
 	$: if (atSelectedModel !== undefined) {
@@ -285,18 +291,73 @@ import { getAgents, type AgentItem } from '$lib/apis/agents';
 		sessionStorage.selectedAgentId = current;
 	};
 
-	const loadAgents = async () => {
-		const res = await getAgents(localStorage.token);
-		availableAgents = res?.items ?? [];
-
-		if (availableAgents.length > 0) {
-			const availableAgentIds = availableAgents.map((agent) => agent.agent_id);
-			if (selectedAgentId && !availableAgentIds.includes(selectedAgentId)) {
-				selectedAgentId = '';
-			}
-		} else {
-			selectedAgentId = '';
+	const resolveSelectedAgentId = (requested: string = ''): string => {
+		const availableAgentIds = availableAgents.map((agent) => agent.agent_id);
+		const requestedId = (requested || '').trim();
+		if (requestedId && availableAgentIds.includes(requestedId)) {
+			return requestedId;
 		}
+
+		const configuredDefault = (defaultAgentId || '').trim();
+		if (configuredDefault && availableAgentIds.includes(configuredDefault)) {
+			return configuredDefault;
+		}
+
+		return availableAgents[0]?.agent_id ?? '';
+	};
+
+	const loadAgents = async () => {
+		let res = await getAgents(localStorage.token);
+		let items = res?.items ?? [];
+		let upstreamDefault = (res?.default_agent_id ?? '').trim();
+
+		if (items.length === 0) {
+			let canForwardKeycloakJwt = false;
+			try {
+				const capability = await getAgentsAuthCapability(localStorage.token);
+				canForwardKeycloakJwt = Boolean(capability?.can_forward_keycloak_jwt);
+			} catch (error) {
+				console.error('Failed checking Keycloak JWT capability:', error);
+			}
+
+			if (canForwardKeycloakJwt) {
+				try {
+					await createAgent(localStorage.token, { name: 'default' });
+				} catch (error) {
+					console.error('Failed creating fallback default agent:', error);
+				}
+
+				res = await getAgents(localStorage.token);
+				items = res?.items ?? [];
+				upstreamDefault = (res?.default_agent_id ?? '').trim();
+			} else {
+				console.info('Skipping fallback default agent creation: Keycloak JWT not available');
+			}
+		}
+
+		availableAgents = items;
+		defaultAgentId = upstreamDefault;
+		selectedAgentId = resolveSelectedAgentId(selectedAgentId);
+	};
+
+	const ensureSelectedAgentForChat = async (): Promise<boolean> => {
+		try {
+			await loadAgents();
+		} catch (error) {
+			console.error('Failed to refresh agents before chat submit:', error);
+			toast.error($i18n.t('Unable to load agents'));
+			return false;
+		}
+
+		const effectiveAgentId = resolveSelectedAgentId(selectedAgentId);
+		selectedAgentId = effectiveAgentId;
+
+		if (!effectiveAgentId) {
+			toast.error($i18n.t('No available agent. Create one from Agents.'));
+			return false;
+		}
+
+		return true;
 	};
 
 	let oldSelectedModelIds = [''];
@@ -1182,10 +1243,7 @@ import { getAgents, type AgentItem } from '$lib/apis/agents';
 		}
 
 		if (availableAgents.length > 0) {
-			const availableAgentIds = availableAgents.map((agent) => agent.agent_id);
-			if (selectedAgentId && !availableAgentIds.includes(selectedAgentId)) {
-				selectedAgentId = '';
-			}
+			selectedAgentId = resolveSelectedAgentId(selectedAgentId);
 		} else {
 			selectedAgentId = '';
 		}
@@ -1316,15 +1374,7 @@ import { getAgents, type AgentItem } from '$lib/apis/agents';
 
 				oldSelectedModelIds = structuredClone(selectedModels);
 
-				selectedAgentId = (chatContent?.agent_id ?? '').trim();
-				if (availableAgents.length > 0) {
-					const availableAgentIds = availableAgents.map((agent) => agent.agent_id);
-					if (selectedAgentId && !availableAgentIds.includes(selectedAgentId)) {
-						selectedAgentId = '';
-					}
-				} else {
-					selectedAgentId = '';
-				}
+				selectedAgentId = resolveSelectedAgentId((chatContent?.agent_id ?? '').trim());
 
 				history =
 					(chatContent?.history ?? undefined) !== undefined
@@ -1563,7 +1613,7 @@ import { getAgents, type AgentItem } from '$lib/apis/agents';
 				role: 'assistant',
 				content: `[RESPONSE] ${responseMessageId}`,
 				done: true,
-
+				...(selectedAgentId ? { agent_id: selectedAgentId } : {}),
 				model: modelId,
 				modelName: model.name ?? model.id,
 				modelIdx: 0,
@@ -1624,6 +1674,7 @@ import { getAgents, type AgentItem } from '$lib/apis/agents';
 					parentId: currentParentId,
 					childrenIds: [],
 					done: true,
+					...(selectedAgentId ? { agent_id: selectedAgentId } : {}),
 					model: model.id,
 					modelName: model.name ?? model.id,
 					modelIdx: 0,
@@ -1854,6 +1905,10 @@ import { getAgents, type AgentItem } from '$lib/apis/agents';
 			return;
 		}
 
+		if (!(await ensureSelectedAgentForChat())) {
+			return;
+		}
+
 		if (
 			files.length > 0 &&
 			files.filter((file) => file.type !== 'image' && file.status === 'uploading').length > 0
@@ -2006,6 +2061,7 @@ import { getAgents, type AgentItem } from '$lib/apis/agents';
 					childrenIds: [],
 					role: 'assistant',
 					content: '',
+					...(selectedAgentId ? { agent_id: selectedAgentId } : {}),
 					model: model.id,
 					modelName: model.name ?? model.id,
 					modelIdx: modelIdx ? modelIdx : _modelIdx,
@@ -2832,6 +2888,8 @@ import { getAgents, type AgentItem } from '$lib/apis/agents';
 						{history}
 						title={$chatTitle}
 						bind:selectedModels
+						bind:selectedAgentId
+						{availableAgents}
 						shareEnabled={!!history.currentId}
 						{initNewChat}
 						{archiveChatHandler}
@@ -2894,6 +2952,8 @@ import { getAgents, type AgentItem } from '$lib/apis/agents';
 										bind:history
 										bind:autoScroll
 										bind:prompt
+										{selectedAgentId}
+										{availableAgents}
 										setInputText={(text) => {
 											messageInput?.setText(text);
 										}}
