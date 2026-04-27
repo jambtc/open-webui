@@ -372,6 +372,40 @@ export type AgentKnowledgeFileMutationResponse = {
 	updated_at: string;
 };
 
+export type AgentKnowledgeUploadTaskAcceptedResponse = {
+	accepted: boolean;
+	task_id: string;
+	agent_id: string;
+	status: string;
+	created_at: string;
+	expires_at: string;
+	status_url: string;
+};
+
+export type AgentKnowledgeUploadTaskItem = {
+	task_id: string;
+	agent_id: string;
+	status: string;
+	source_kind: string;
+	requested_path: string;
+	filename: string | null;
+	created_at: string;
+	updated_at: string;
+	started_at: string | null;
+	finished_at: string | null;
+	expires_at: string;
+};
+
+export type AgentKnowledgeUploadTaskListResponse = {
+	agent_id: string;
+	items: AgentKnowledgeUploadTaskItem[];
+};
+
+export type AgentKnowledgeUploadTaskStatusResponse = AgentKnowledgeUploadTaskItem & {
+	result: AgentKnowledgeFileMutationResponse | null;
+	error_detail: string | null;
+};
+
 export const uploadAgentKnowledgeFile = async (
 	_token: string = '',
 	agentId: string,
@@ -391,6 +425,98 @@ export const uploadAgentKnowledgeFile = async (
 			Accept: 'application/json'
 		},
 		body: formData
+	})
+		.then(async (res) => {
+			if (!res.ok) throw await res.json();
+			return res.json();
+		})
+		.catch((err) => {
+			error = err?.detail ?? err;
+			console.error(err);
+			return null;
+		});
+
+	if (error) {
+		throw error;
+	}
+
+	return res;
+};
+
+export const uploadAgentKnowledgeFileBackground = async (
+	_token: string = '',
+	agentId: string,
+	file: File,
+	path: string = '',
+	overwrite: boolean = false
+): Promise<AgentKnowledgeUploadTaskAcceptedResponse> => {
+	let error = null;
+	const formData = new FormData();
+	formData.append('file', file);
+	formData.append('path', path);
+	formData.append('overwrite', overwrite ? 'true' : 'false');
+
+	const res = await authFetch(`${WEBUI_API_BASE_URL}/boxedai/agents/${agentId}/knowledge/files/upload/background`, {
+		method: 'POST',
+		headers: {
+			Accept: 'application/json'
+		},
+		body: formData
+	})
+		.then(async (res) => {
+			if (!res.ok) throw await res.json();
+			return res.json();
+		})
+		.catch((err) => {
+			error = err?.detail ?? err;
+			console.error(err);
+			return null;
+		});
+
+	if (error) {
+		throw error;
+	}
+
+	return res;
+};
+
+export const getAgentKnowledgePendingTasks = async (
+	_token: string = '',
+	agentId: string
+): Promise<AgentKnowledgeUploadTaskListResponse> => {
+	let error = null;
+
+	const res = await authFetch(`${WEBUI_API_BASE_URL}/boxedai/agents/${agentId}/knowledge/tasks/pending`, {
+		method: 'GET',
+		headers: jsonHeaders
+	})
+		.then(async (res) => {
+			if (!res.ok) throw await res.json();
+			return res.json();
+		})
+		.catch((err) => {
+			error = err?.detail ?? err;
+			console.error(err);
+			return null;
+		});
+
+	if (error) {
+		throw error;
+	}
+
+	return res;
+};
+
+export const getAgentKnowledgeTaskStatus = async (
+	_token: string = '',
+	agentId: string,
+	taskId: string
+): Promise<AgentKnowledgeUploadTaskStatusResponse> => {
+	let error = null;
+
+	const res = await authFetch(`${WEBUI_API_BASE_URL}/boxedai/agents/${agentId}/knowledge/tasks/${taskId}`, {
+		method: 'GET',
+		headers: jsonHeaders
 	})
 		.then(async (res) => {
 			if (!res.ok) throw await res.json();

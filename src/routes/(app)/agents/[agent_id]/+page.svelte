@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { getContext, onMount } from 'svelte';
+	import { getContext, onDestroy, onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
@@ -11,13 +11,16 @@
 		getAgentKnowledgeTree,
 		createAgentKnowledgeFolder,
 		deleteAgentKnowledgeFolder,
-		uploadAgentKnowledgeFile,
+		uploadAgentKnowledgeFileBackground,
 		deleteAgentKnowledgeFile,
 		getAgentKnowledgeFileContent,
 		getAgentKnowledgeFileDownloadUrl,
+		getAgentKnowledgePendingTasks,
+		getAgentKnowledgeTaskStatus,
 		type AgentDetailResponse,
 		type AgentKnowledgeFileContentResponse,
 		type AgentKnowledgeTreeResponse,
+		type AgentKnowledgeUploadTaskStatusResponse,
 		type UpdateAgentPayload
 	} from '$lib/apis/agents';
 	import { mobile, showArchivedChats, showSidebar, user } from '$lib/stores';
@@ -46,6 +49,12 @@
 	let showKnowledgePreviewModal = false;
 	let knowledgePreviewLoading = false;
 	let knowledgePreview: AgentKnowledgeFileContentResponse | null = null;
+	let knowledgeTasks: AgentKnowledgeUploadTaskStatusResponse[] = [];
+	let knowledgeTasksLoading = false;
+	let trackedKnowledgeTaskIds: string[] = [];
+	let taskTerminalNotified: Record<string, boolean> = {};
+	let taskStatusById: Record<string, string> = {};
+	let taskPollTimer: ReturnType<typeof setInterval> | null = null;
 	let showEditAgentModal = false;
 	let editLoading = false;
 	let deleteLoading = false;
@@ -98,6 +107,136 @@
 		await loadKnowledgeTree(path);
 	};
 
+	const activeTaskStatuses = new Set(['pending', 'running']);
+
+	const sortKnowledgeTasks = (items: AgentKnowledgeUploadTaskStatusResponse[]) => {
+		return [...items].sort((a, b) => {
+			const aTs = new Date(a.updated_at ?? a.created_at ?? 0).getTime();
+			const bTs = new Date(b.updated_at ?? b.created_at ?? 0).getTime();
+			return bTs - aTs;
+		});
+	};
+
+	const formatTaskStatusLabel = (status: string) => {
+		switch ((status || '').toLowerCase()) {
+			case 'pending':
+				return 'Pending';
+			case 'running':
+				return 'Processing';
+			case 'succeeded':
+				return 'Completed';
+			case 'failed':
+				return 'Failed';
+			case 'expired':
+				return 'Expired';
+			default:
+				return status || 'unknown';
+		}
+	};
+
+	const formatTaskStatusClass = (status: string) => {
+		switch ((status || '').toLowerCase()) {
+			case 'pending':
+				return 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300';
+			case 'running':
+				return 'bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300';
+			case 'succeeded':
+				return 'bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-300';
+			case 'failed':
+			case 'expired':
+				return 'bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300';
+			default:
+				return 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300';
+		}
+	};
+
+	const startTaskPolling = () => {
+		if (taskPollTimer) return;
+		taskPollTimer = setInterval(async () => {
+			await refreshKnowledgeTasks();
+		}, 2500);
+	};
+
+	const stopTaskPolling = () => {
+		if (!taskPollTimer) return;
+		clearInterval(taskPollTimer);
+		taskPollTimer = null;
+	};
+
+	const refreshKnowledgeTasks = async () => {
+		if (knowledgeTasksLoading) return;
+		knowledgeTasksLoading = true;
+
+		try {
+			const pending = await getAgentKnowledgePendingTasks(localStorage.token, $page.params.agent_id);
+
+			const ids = new Set<string>(trackedKnowledgeTaskIds);
+			for (const item of pending?.items ?? []) {
+				ids.add(item.task_id);
+			}
+			for (const item of knowledgeTasks) {
+				if (activeTaskStatuses.has((item.status || '').toLowerCase())) {
+					ids.add(item.task_id);
+				}
+			}
+
+			const nextTasks: AgentKnowledgeUploadTaskStatusResponse[] = [];
+			for (const taskId of ids) {
+				try {
+					const task = await getAgentKnowledgeTaskStatus(localStorage.token, $page.params.agent_id, taskId);
+					nextTasks.push(task);
+				} catch (error) {
+					if (`${error}`.toLowerCase().includes('not found')) {
+						continue;
+					}
+					throw error;
+				}
+			}
+
+			knowledgeTasks = sortKnowledgeTasks(nextTasks);
+
+			let shouldRefreshTree = false;
+			for (const task of knowledgeTasks) {
+				const status = (task.status || '').toLowerCase();
+				const previousStatus = (taskStatusById[task.task_id] || '').toLowerCase();
+				taskStatusById[task.task_id] = status;
+
+				if (status === 'succeeded' && previousStatus !== 'succeeded' && !taskTerminalNotified[task.task_id]) {
+					taskTerminalNotified[task.task_id] = true;
+					toast.success(`Upload completed: ${task.filename ?? task.requested_path}`);
+					shouldRefreshTree = true;
+				}
+
+				if (
+					(status === 'failed' || status === 'expired') &&
+					previousStatus !== status &&
+					!taskTerminalNotified[task.task_id]
+				) {
+					taskTerminalNotified[task.task_id] = true;
+					toast.error(task.error_detail || `Upload ${status}: ${task.filename ?? task.requested_path}`);
+				}
+			}
+
+			trackedKnowledgeTaskIds = knowledgeTasks
+				.filter((task) => activeTaskStatuses.has((task.status || '').toLowerCase()))
+				.map((task) => task.task_id);
+
+			if (trackedKnowledgeTaskIds.length > 0) {
+				startTaskPolling();
+			} else {
+				stopTaskPolling();
+			}
+
+			if (shouldRefreshTree) {
+				await loadKnowledgeTree(currentKnowledgePath);
+			}
+		} catch (error) {
+			console.error('Failed refreshing knowledge tasks', error);
+		} finally {
+			knowledgeTasksLoading = false;
+		}
+	};
+
 	const createKnowledgeFolderHandler = async () => {
 		const base = currentKnowledgePath ? `${currentKnowledgePath}/` : '';
 		const value = window.prompt('New folder path', base);
@@ -144,9 +283,19 @@
 		if (!file) return;
 
 		try {
-			await uploadAgentKnowledgeFile(localStorage.token, $page.params.agent_id, file, currentKnowledgePath);
-			toast.success('File uploaded successfully');
-			await loadKnowledgeTree(currentKnowledgePath);
+			const task = await uploadAgentKnowledgeFileBackground(
+				localStorage.token,
+				$page.params.agent_id,
+				file,
+				currentKnowledgePath
+			);
+			toast.success(`Upload queued: ${file.name}`);
+
+			if (task?.task_id) {
+				trackedKnowledgeTaskIds = Array.from(new Set([...trackedKnowledgeTaskIds, task.task_id]));
+				startTaskPolling();
+			}
+			await refreshKnowledgeTasks();
 		} catch (error) {
 			toast.error(`${error}`);
 		} finally {
@@ -289,11 +438,16 @@
 		try {
 			await loadAgent();
 			await loadKnowledgeTree('');
+			await refreshKnowledgeTasks();
 		} catch (error) {
 			errorMessage = `${error}`;
 		} finally {
 			loaded = true;
 		}
+	});
+
+	onDestroy(() => {
+		stopTaskPolling();
 	});
 </script>
 
@@ -482,6 +636,57 @@
 							<span class="text-gray-500 dark:text-gray-400">Current upload target:</span>
 							<span class="ml-2 font-mono text-xs text-gray-900 dark:text-gray-100">{currentKnowledgePath || 'root'}</span>
 						</div>
+					</div>
+
+					<div class="mt-4 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-gray-950">
+						<div class="flex items-center justify-between gap-2">
+							<div class="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+								Knowledge Upload Tasks
+							</div>
+							<div class="flex items-center gap-2">
+								{#if knowledgeTasksLoading}
+									<Spinner className="size-3.5" />
+								{/if}
+								<button
+									type="button"
+									class="rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-700 transition hover:bg-white dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-900"
+									on:click={refreshKnowledgeTasks}
+									disabled={knowledgeTasksLoading}
+								>
+									Refresh Tasks
+								</button>
+							</div>
+						</div>
+
+						{#if knowledgeTasks.length === 0}
+							<div class="mt-2 text-xs text-gray-500 dark:text-gray-400">No active upload tasks.</div>
+						{:else}
+							<div class="mt-2 space-y-2">
+								{#each knowledgeTasks as task (task.task_id)}
+									<div class="rounded-lg border border-gray-200 bg-white px-3 py-2 dark:border-gray-800 dark:bg-gray-900">
+										<div class="flex flex-wrap items-center justify-between gap-2">
+											<div class="min-w-0">
+												<div class="truncate text-sm font-medium text-gray-900 dark:text-gray-100">
+													{task.filename ?? task.requested_path}
+												</div>
+												<div class="mt-0.5 font-mono text-[11px] text-gray-500 dark:text-gray-400">{task.task_id}</div>
+											</div>
+											<span class={`rounded-full px-2 py-0.5 text-[11px] font-medium ${formatTaskStatusClass(task.status)}`}>
+												{formatTaskStatusLabel(task.status)}
+											</span>
+										</div>
+										<div class="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+											Updated: {formatKnowledgeDate(task.updated_at)}
+										</div>
+										{#if task.error_detail}
+											<div class="mt-1 text-xs text-red-700 dark:text-red-300">
+												{task.error_detail}
+											</div>
+										{/if}
+									</div>
+								{/each}
+							</div>
+						{/if}
 					</div>
 
 					<div class="mt-4 flex flex-wrap items-center gap-2 text-sm">
