@@ -81,16 +81,6 @@ async def _extract_openclaw_bearer_token(request: Request, user: UserModel | Non
     if oauth_id_token:
         return oauth_id_token
 
-    authorization = request.headers.get('authorization')
-    if authorization:
-        parts = authorization.split(None, 1)
-        if len(parts) == 2 and parts[0].lower() == 'bearer' and parts[1].strip():
-            return parts[1].strip()
-
-    state_token = getattr(request.state, 'token', None)
-    if state_token and getattr(state_token, 'credentials', None) and not request.headers.get('x-api-key'):
-        return str(state_token.credentials)
-
     return None
 
 
