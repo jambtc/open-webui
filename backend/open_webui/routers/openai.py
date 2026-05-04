@@ -213,8 +213,12 @@ async def get_headers_and_cookies(
         if request.cookies:
             cookies = request.cookies
     elif auth_type == 'bearer' or auth_type is None:
-        # Default to bearer if not specified
-        token = f'{key}'
+        # Default to bearer if not specified.
+        # If no static key is configured, fallback to user OAuth token
+        # so OIDC-authenticated users can call protected upstreams.
+        token = f'{key}' if key else None
+        if not token and user is not None:
+            token = await _extract_openclaw_bearer_token(request, user)
     elif auth_type == 'none':
         token = None
     elif auth_type == 'session':
