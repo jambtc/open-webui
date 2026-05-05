@@ -777,7 +777,10 @@
 						const blob = await (await fetch(imageUrl)).blob();
 						const compressedFile = new File([blob], file.name, { type: file.type });
 
-						uploadFileHandler(compressedFile, false);
+						uploadFileHandler(compressedFile, false, {
+							previewUrl: imageUrl,
+							content_type: file.type
+						});
 					}
 				};
 
@@ -1279,9 +1282,11 @@
 									{#each files as file, fileIdx}
 										{#if file.type === 'image' || (file?.content_type ?? '').startsWith('image/')}
 											{@const fileUrl =
-												file.url.startsWith('data') || file.url.startsWith('http')
-													? file.url
-													: `${WEBUI_API_BASE_URL}/files/${file.url}${file?.content_type ? '/content' : ''}`}
+												file.previewUrl
+													? file.previewUrl
+													: file.url.startsWith('data') || file.url.startsWith('http')
+														? file.url
+														: `${WEBUI_API_BASE_URL}/files/${file.url}${file?.content_type ? '/content' : ''}`}
 											<div class=" relative group">
 												<div class="relative flex items-center">
 													<Image

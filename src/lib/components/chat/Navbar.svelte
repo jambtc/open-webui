@@ -48,10 +48,6 @@
 	export let chat;
 	export let history;
 	export let selectedModels;
-	export let selectedAgentId = '';
-	export let availableAgents = [];
-	export let showModelSelector = true;
-
 	export let onSaveTempChat: () => {};
 	export let archiveChatHandler: (id: string) => void;
 	export let moveChatHandler: (id: string, folderId: string) => void;
@@ -111,34 +107,7 @@
 					class="flex-1 overflow-hidden max-w-full mt-0.5 py-0.5
 			{$showSidebar ? 'ml-1' : ''}
 			"
-				>
-					{#if showModelSelector}
-						{#if availableAgents.length > 0}
-							<div class="ml-1 flex items-center gap-2 min-w-0">
-								<span class="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{$i18n.t('Agent')}</span>
-								<select
-									class="max-w-56 rounded-lg border border-gray-200 bg-white px-2 py-1 text-sm text-gray-700 outline-hidden focus:border-blue-500 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-100"
-									bind:value={selectedAgentId}
-								>
-									{#each availableAgents as agent (agent.agent_id)}
-										<option value={agent.agent_id}>
-											{agent.name ?? agent.agent_id}
-										</option>
-									{/each}
-								</select>
-							</div>
-						{:else}
-							<div class="ml-1 flex items-center gap-2 min-w-0">
-								<span class="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{$i18n.t('Agent')}</span>
-								<span
-									class="max-w-56 rounded-lg border border-gray-200 bg-white px-2 py-1 text-sm text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-100"
-								>
-									default
-								</span>
-							</div>
-						{/if}
-					{/if}
-				</div>
+				></div>
 
 				<div class="self-start flex flex-none items-center text-gray-600 dark:text-gray-400">
 					<!-- <div class="md:hidden flex self-center w-[1px] h-5 mx-2 bg-gray-300 dark:bg-stone-700" /> -->
