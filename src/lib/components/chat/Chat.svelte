@@ -2888,8 +2888,6 @@
 						{history}
 						title={$chatTitle}
 						bind:selectedModels
-						bind:selectedAgentId
-						{availableAgents}
 						shareEnabled={!!history.currentId}
 						{initNewChat}
 						{archiveChatHandler}
