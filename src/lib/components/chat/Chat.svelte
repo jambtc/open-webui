@@ -1975,7 +1975,8 @@
 		chatFiles.push(
 			..._files.filter(
 				(item) =>
-					['doc', 'text', 'note', 'chat', 'folder', 'collection'].includes(item.type) ||
+					(['doc', 'text', 'note', 'chat', 'folder', 'collection'].includes(item.type) &&
+						!item.url?.startsWith('http')) ||
 					(item.type === 'file' && !(item?.content_type ?? '').startsWith('image/'))
 			)
 		);
