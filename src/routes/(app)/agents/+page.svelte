@@ -23,6 +23,15 @@
 	let createLoading = false;
 	let refreshing = false;
 
+	const humanizeAgentLabel = (value: string | null | undefined) => {
+		const raw = (value ?? '').trim();
+		if (!raw) return '';
+		return raw.replace(
+			/^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|u-[0-9a-f]{24})-(.+)$/i,
+			'$1'
+		);
+	};
+
 	const loadAgents = async () => {
 		const res = await getAgents(localStorage.token);
 		agents = res?.items ?? [];
@@ -194,10 +203,7 @@
 							<div class="flex items-start justify-between gap-3">
 								<div>
 									<div class="text-sm font-medium text-gray-900 dark:text-gray-100">
-										{agent.name ?? agent.agent_id}
-									</div>
-									<div class="mt-1 font-mono text-xs text-gray-500 dark:text-gray-400">
-										{agent.agent_id}
+										{humanizeAgentLabel(agent.name) || humanizeAgentLabel(agent.agent_id)}
 									</div>
 								</div>
 
