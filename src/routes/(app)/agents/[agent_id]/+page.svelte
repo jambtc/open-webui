@@ -58,52 +58,61 @@
 	let showEditAgentModal = false;
 	let editLoading = false;
 	let deleteLoading = false;
+	let isKnowledgeDropActive = false;
 
-	const getAgentWorkspace = (currentAgent: AgentDetailResponse | null) => {
-		if (!currentAgent) return '';
+	const humanizeAgentLabel = (value: string | null | undefined) => {
+		const raw = (value ?? '').trim();
+		if (!raw) return '';
+		let out = raw;
+		out = out.replace(
+			/^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|u-[0-9a-f]{24})-(.+)$/i,
+			'$1'
+		);
+		return out;
+	};
 
-		if (typeof currentAgent.workspace === 'string' && currentAgent.workspace.trim()) {
-			return currentAgent.workspace.trim();
-		}
-
-		const identity = currentAgent.identity ?? {};
-		const candidates = [
-			identity?.workspace,
-			identity?.cwd,
-			identity?.root,
-			identity?.path,
-			identity?.workspace_path
-		];
-
-		for (const value of candidates) {
-			if (typeof value === 'string' && value.trim()) {
-				return value.trim();
-			}
-		}
-
-		return '';
+	const debugAgent = (event: string, payload: Record<string, unknown> = {}) => {
+		console.debug(`[agents.ui] ${event}`, {
+			agent_id: $page.params.agent_id,
+			currentKnowledgePath,
+			...payload
+		});
 	};
 
 	const loadAgent = async () => {
 		errorMessage = '';
+		debugAgent('agent.load.start');
 		agent = await getAgentById(localStorage.token, $page.params.agent_id);
+		debugAgent('agent.load.success', {
+			name: agent?.name ?? null,
+			is_default: agent?.is_default ?? null
+		});
 		return agent;
 	};
 
 	const loadKnowledgeTree = async (path = currentKnowledgePath) => {
 		knowledgeLoading = true;
 		knowledgeError = '';
+		debugAgent('knowledge.tree.load.start', { requested_path: path });
 		try {
 			knowledgeTree = await getAgentKnowledgeTree(localStorage.token, $page.params.agent_id, path);
 			currentKnowledgePath = knowledgeTree?.path ?? path;
+			debugAgent('knowledge.tree.load.success', {
+				requested_path: path,
+				resolved_path: currentKnowledgePath,
+				root: knowledgeTree?.root ?? null,
+				items_count: knowledgeTree?.items?.length ?? 0
+			});
 		} catch (error) {
 			knowledgeError = `${error}`;
+			debugAgent('knowledge.tree.load.error', { requested_path: path, error: `${error}` });
 		} finally {
 			knowledgeLoading = false;
 		}
 	};
 
 	const openKnowledgeFolder = async (path: string) => {
+		debugAgent('knowledge.folder.open', { target_path: path });
 		await loadKnowledgeTree(path);
 	};
 
@@ -166,6 +175,9 @@
 	const refreshKnowledgeTasks = async () => {
 		if (knowledgeTasksLoading) return;
 		knowledgeTasksLoading = true;
+		debugAgent('knowledge.tasks.refresh.start', {
+			tracked_task_ids: [...trackedKnowledgeTaskIds]
+		});
 
 		try {
 			const pending = await getAgentKnowledgePendingTasks(localStorage.token, $page.params.agent_id);
@@ -200,6 +212,15 @@
 				const status = (task.status || '').toLowerCase();
 				const previousStatus = (taskStatusById[task.task_id] || '').toLowerCase();
 				taskStatusById[task.task_id] = status;
+				if (previousStatus !== status) {
+					debugAgent('knowledge.task.status.transition', {
+						task_id: task.task_id,
+						from: previousStatus || null,
+						to: status,
+						filename: task.filename ?? null,
+						requested_path: task.requested_path ?? null
+					});
+				}
 
 				if (status === 'succeeded' && previousStatus !== 'succeeded' && !taskTerminalNotified[task.task_id]) {
 					taskTerminalNotified[task.task_id] = true;
@@ -228,11 +249,20 @@
 			}
 
 			if (shouldRefreshTree) {
+				debugAgent('knowledge.tasks.refresh.tree_reload', {
+					reason: 'task_succeeded',
+					path: currentKnowledgePath
+				});
 				await loadKnowledgeTree(currentKnowledgePath);
 			}
 		} catch (error) {
 			console.error('Failed refreshing knowledge tasks', error);
+			debugAgent('knowledge.tasks.refresh.error', { error: `${error}` });
 		} finally {
+			debugAgent('knowledge.tasks.refresh.end', {
+				tracked_task_ids: [...trackedKnowledgeTaskIds],
+				task_count: knowledgeTasks.length
+			});
 			knowledgeTasksLoading = false;
 		}
 	};
@@ -250,9 +280,11 @@
 
 		try {
 			await createAgentKnowledgeFolder(localStorage.token, $page.params.agent_id, nextPath);
+			debugAgent('knowledge.folder.create.success', { folder_path: nextPath });
 			toast.success('Folder created successfully');
 			await loadKnowledgeTree(currentKnowledgePath);
 		} catch (error) {
+			debugAgent('knowledge.folder.create.error', { folder_path: nextPath, error: `${error}` });
 			toast.error(`${error}`);
 		}
 	};
@@ -265,9 +297,15 @@
 
 		try {
 			await deleteAgentKnowledgeFolder(localStorage.token, $page.params.agent_id, itemPath, true);
+			debugAgent('knowledge.folder.delete.success', { folder_path: itemPath, folder_name: itemName });
 			toast.success('Folder deleted successfully');
 			await loadKnowledgeTree(currentKnowledgePath);
 		} catch (error) {
+			debugAgent('knowledge.folder.delete.error', {
+				folder_path: itemPath,
+				folder_name: itemName,
+				error: `${error}`
+			});
 			toast.error(`${error}`);
 		}
 	};
@@ -277,29 +315,94 @@
 		knowledgeFileInput?.click();
 	};
 
+	const queueKnowledgeUpload = async (file: File) => {
+		const task = await uploadAgentKnowledgeFileBackground(
+			localStorage.token,
+			$page.params.agent_id,
+			file,
+			currentKnowledgePath
+		);
+		debugAgent('knowledge.file.upload.queued', {
+			filename: file.name,
+			target_path: currentKnowledgePath,
+			task_id: task?.task_id ?? null
+		});
+		toast.success(`Upload queued: ${file.name}`);
+
+		if (task?.task_id) {
+			trackedKnowledgeTaskIds = Array.from(new Set([...trackedKnowledgeTaskIds, task.task_id]));
+			startTaskPolling();
+		}
+	};
+
+	const queueKnowledgeUploads = async (files: File[]) => {
+		if (files.length === 0) return;
+		let queuedCount = 0;
+
+		for (const file of files) {
+			try {
+				await queueKnowledgeUpload(file);
+				queuedCount += 1;
+			} catch (error) {
+				debugAgent('knowledge.file.upload.error', {
+					filename: file.name,
+					target_path: currentKnowledgePath,
+					error: `${error}`
+				});
+				toast.error(`${error}`);
+			}
+		}
+
+		if (queuedCount > 0) {
+			await refreshKnowledgeTasks();
+		}
+	};
+
 	const uploadKnowledgeFileHandler = async (event: Event) => {
 		const input = event.currentTarget as HTMLInputElement;
-		const file = input.files?.[0];
-		if (!file) return;
+		const files = input.files ? Array.from(input.files) : [];
+		if (files.length === 0) return;
 
 		try {
-			const task = await uploadAgentKnowledgeFileBackground(
-				localStorage.token,
-				$page.params.agent_id,
-				file,
-				currentKnowledgePath
-			);
-			toast.success(`Upload queued: ${file.name}`);
-
-			if (task?.task_id) {
-				trackedKnowledgeTaskIds = Array.from(new Set([...trackedKnowledgeTaskIds, task.task_id]));
-				startTaskPolling();
-			}
-			await refreshKnowledgeTasks();
+			await queueKnowledgeUploads(files);
 		} catch (error) {
 			toast.error(`${error}`);
 		} finally {
 			input.value = '';
+		}
+	};
+
+	const onKnowledgeDragOver = (event: DragEvent) => {
+		event.preventDefault();
+		if (knowledgeLoading) return;
+		isKnowledgeDropActive = true;
+	};
+
+	const onKnowledgeDragLeave = (event: DragEvent) => {
+		event.preventDefault();
+		const target = event.currentTarget as HTMLElement | null;
+		const related = event.relatedTarget as Node | null;
+		if (target && related && target.contains(related)) return;
+		isKnowledgeDropActive = false;
+	};
+
+	const onKnowledgeDrop = async (event: DragEvent) => {
+		event.preventDefault();
+		isKnowledgeDropActive = false;
+		if (knowledgeLoading) return;
+		const files = event.dataTransfer?.files ? Array.from(event.dataTransfer.files) : [];
+		if (files.length === 0) return;
+		debugAgent('knowledge.file.drop', {
+			count: files.length,
+			target_path: currentKnowledgePath
+		});
+		await queueKnowledgeUploads(files);
+	};
+
+	const onKnowledgeDropzoneKeydown = (event: KeyboardEvent) => {
+		if (event.key === 'Enter' || event.key === ' ') {
+			event.preventDefault();
+			triggerKnowledgeUpload();
 		}
 	};
 
@@ -309,9 +412,15 @@
 
 		try {
 			await deleteAgentKnowledgeFile(localStorage.token, $page.params.agent_id, itemPath);
+			debugAgent('knowledge.file.delete.success', { file_path: itemPath, file_name: itemName });
 			toast.success('File deleted successfully');
 			await loadKnowledgeTree(currentKnowledgePath);
 		} catch (error) {
+			debugAgent('knowledge.file.delete.error', {
+				file_path: itemPath,
+				file_name: itemName,
+				error: `${error}`
+			});
 			toast.error(`${error}`);
 		}
 	};
@@ -325,8 +434,15 @@
 				$page.params.agent_id,
 				itemPath
 			);
+			debugAgent('knowledge.file.preview.success', {
+				file_path: itemPath,
+				filename: knowledgePreview?.filename ?? null,
+				mime_type: knowledgePreview?.mime_type ?? null,
+				size_bytes: knowledgePreview?.size_bytes ?? null
+			});
 			showKnowledgePreviewModal = true;
 		} catch (error) {
+			debugAgent('knowledge.file.preview.error', { file_path: itemPath, error: `${error}` });
 			toast.error(`${error}`);
 		} finally {
 			knowledgePreviewLoading = false;
@@ -334,6 +450,7 @@
 	};
 
 	const downloadKnowledgeFileHandler = (itemPath: string) => {
+		debugAgent('knowledge.file.download', { file_path: itemPath });
 		window.open(getAgentKnowledgeFileDownloadUrl($page.params.agent_id, itemPath), '_blank');
 	};
 
@@ -401,12 +518,15 @@
 
 	const updateAgentHandler = async (payload: UpdateAgentPayload) => {
 		editLoading = true;
+		debugAgent('agent.update.start', { payload });
 		try {
 			await updateAgent(localStorage.token, $page.params.agent_id, payload);
 			await waitForUpdatedAgent(payload);
+			debugAgent('agent.update.success', { payload });
 			showEditAgentModal = false;
 			toast.success('Agent updated successfully');
 		} catch (error) {
+			debugAgent('agent.update.error', { payload, error: `${error}` });
 			toast.error(`${error}`);
 		} finally {
 			editLoading = false;
@@ -422,12 +542,25 @@
 		if (!confirmed) return;
 
 		deleteLoading = true;
+		debugAgent('agent.delete.start', {
+			target_agent_id: agent.agent_id,
+			target_agent_name: agent.name ?? null
+		});
 		try {
 			await deleteAgent(localStorage.token, agent.agent_id, true);
 			await waitForDeletedAgent(agent.agent_id);
+			debugAgent('agent.delete.success', {
+				target_agent_id: agent.agent_id,
+				target_agent_name: agent.name ?? null
+			});
 			toast.success('Agent deleted successfully');
 			await goto('/agents');
 		} catch (error) {
+			debugAgent('agent.delete.error', {
+				target_agent_id: agent.agent_id,
+				target_agent_name: agent.name ?? null,
+				error: `${error}`
+			});
 			toast.error(`${error}`);
 		} finally {
 			deleteLoading = false;
@@ -489,7 +622,7 @@
 						{$i18n.t('Agents')}
 					</button>
 					<span class="text-gray-400">/</span>
-					<span class="text-gray-700 dark:text-gray-300">{$page.params.agent_id}</span>
+					<span class="text-gray-700 dark:text-gray-300">{humanizeAgentLabel(agent?.name) || humanizeAgentLabel($page.params.agent_id)}</span>
 				</div>
 
 				<div class="self-center flex items-center gap-1">
@@ -539,11 +672,8 @@
 					<div class="flex items-start justify-between gap-4">
 						<div>
 							<h1 class="text-xl font-semibold text-gray-900 dark:text-gray-100">
-								{agent.name ?? agent.agent_id}
+								{humanizeAgentLabel(agent.name) || humanizeAgentLabel(agent.agent_id)}
 							</h1>
-							<div class="mt-1 font-mono text-xs text-gray-500 dark:text-gray-400">
-								{agent.agent_id}
-							</div>
 						</div>
 						<div class="flex items-center gap-2">
 							{#if agent.is_default}
@@ -577,25 +707,16 @@
 					</div>
 				</div>
 
-				<div class="grid gap-4">
-					<div class="rounded-2xl border border-gray-200 bg-white px-5 py-4 dark:border-gray-800 dark:bg-gray-900">
-						<div class="text-sm font-medium text-gray-900 dark:text-gray-100">Identity</div>
-						{#if agent.identity}
-							<pre class="mt-3 overflow-x-auto rounded-xl bg-gray-50 p-3 text-xs text-gray-700 dark:bg-gray-950 dark:text-gray-300">{JSON.stringify(agent.identity, null, 2)}</pre>
-						{:else}
-							<div class="mt-3 text-sm text-gray-500 dark:text-gray-400">No identity payload available.</div>
-						{/if}
-					</div>
-				</div>
-
 				<div class="rounded-2xl border border-gray-200 bg-white px-5 py-4 dark:border-gray-800 dark:bg-gray-900">
 					<div class="flex items-center justify-between gap-3">
 						<div>
 							<div class="text-sm font-medium text-gray-900 dark:text-gray-100">Knowledge</div>
-							<div class="mt-1 text-xs text-gray-500 dark:text-gray-400">Tree for /memory/knowledge. Upload uses the current folder shown below.</div>
+							<div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+								Upload content to be used by this agent as reference knowledge.
+							</div>
 						</div>
 						<div class="flex items-center gap-2">
-							<input bind:this={knowledgeFileInput} type="file" class="hidden" on:change={uploadKnowledgeFileHandler} />
+							<input bind:this={knowledgeFileInput} type="file" multiple class="hidden" on:change={uploadKnowledgeFileHandler} />
 							<button
 								type="button"
 								class="rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-850"
@@ -620,21 +741,6 @@
 							>
 								Refresh
 							</button>
-						</div>
-					</div>
-
-					<div class="mt-3 space-y-2 text-sm">
-						<div>
-							<span class="text-gray-500 dark:text-gray-400">Workspace:</span>
-							<span class="ml-2 text-gray-900 dark:text-gray-100">{(knowledgeTree?.workspace ?? getAgentWorkspace(agent)) || 'n/a'}</span>
-						</div>
-						<div>
-							<span class="text-gray-500 dark:text-gray-400">Root:</span>
-							<span class="ml-2 font-mono text-xs text-gray-900 dark:text-gray-100">{knowledgeTree?.root ?? 'n/a'}</span>
-						</div>
-						<div>
-							<span class="text-gray-500 dark:text-gray-400">Current upload target:</span>
-							<span class="ml-2 font-mono text-xs text-gray-900 dark:text-gray-100">{currentKnowledgePath || 'root'}</span>
 						</div>
 					</div>
 
@@ -669,7 +775,6 @@
 												<div class="truncate text-sm font-medium text-gray-900 dark:text-gray-100">
 													{task.filename ?? task.requested_path}
 												</div>
-												<div class="mt-0.5 font-mono text-[11px] text-gray-500 dark:text-gray-400">{task.task_id}</div>
 											</div>
 											<span class={`rounded-full px-2 py-0.5 text-[11px] font-medium ${formatTaskStatusClass(task.status)}`}>
 												{formatTaskStatusLabel(task.status)}
@@ -687,6 +792,31 @@
 								{/each}
 							</div>
 						{/if}
+					</div>
+
+					<div
+						class={`mt-4 rounded-xl border border-dashed px-4 py-7 text-center transition ${
+							isKnowledgeDropActive
+								? 'border-blue-400 bg-blue-50 dark:border-blue-500 dark:bg-blue-950/30'
+								: 'border-gray-300 bg-gray-50 dark:border-gray-700 dark:bg-gray-950'
+						}`}
+						role="button"
+						tabindex="0"
+						on:dragover={onKnowledgeDragOver}
+						on:dragenter={onKnowledgeDragOver}
+						on:dragleave={onKnowledgeDragLeave}
+						on:drop={onKnowledgeDrop}
+						on:click={triggerKnowledgeUpload}
+						on:keydown={onKnowledgeDropzoneKeydown}
+					>
+						<div class="mx-auto max-w-xl">
+							<div class="text-sm font-semibold text-gray-800 dark:text-gray-100">
+								Drop files here or <span class="text-blue-700 dark:text-blue-300">browse</span>
+							</div>
+							<div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+								PDF, DOCX, TXT, JSON, CSV, MD supported
+							</div>
+						</div>
 					</div>
 
 					<div class="mt-4 flex flex-wrap items-center gap-2 text-sm">
@@ -744,7 +874,6 @@
 											{:else}
 												<div class="text-gray-900 dark:text-gray-100">📄 {item.name}</div>
 											{/if}
-											<div class="mt-1 font-mono text-xs text-gray-500 dark:text-gray-400">{item.path}</div>
 										</div>
 										<div class="text-gray-600 dark:text-gray-300">{item.kind === 'file' ? formatBytes(item.size_bytes) : '—'}</div>
 										<div class="text-gray-600 dark:text-gray-300">{formatKnowledgeDate(item.updated_at)}</div>
@@ -832,19 +961,12 @@
 			<div class="border-b border-gray-200 bg-gray-50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-400">
 				File
 			</div>
-			<div class="space-y-2 px-4 py-3">
-				<div class="pl-1 text-lg font-semibold text-gray-900 break-words dark:text-gray-100">
-					{knowledgePreview?.filename ?? 'Knowledge File'}
-				</div>
-				{#if knowledgePreview}
-					<div class="rounded-lg bg-gray-50 px-3 py-2 dark:bg-gray-950">
-						<div class="font-mono text-xs text-gray-600 break-all dark:text-gray-300">
-							{knowledgePreview.path}
-						</div>
+				<div class="space-y-2 px-4 py-3">
+					<div class="pl-1 text-lg font-semibold text-gray-900 break-words dark:text-gray-100">
+						{knowledgePreview?.filename ?? 'Knowledge File'}
 					</div>
-				{/if}
+				</div>
 			</div>
-		</div>
 
 		{#if knowledgePreview}
 			<div class="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
