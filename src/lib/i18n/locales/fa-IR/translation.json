@@ -1175,6 +1175,7 @@
 	"LLMs can make mistakes. Verify important information.": "مدل\u200cهای زبانی بزرگ می\u200cتوانند اشتباه کنند. اطلاعات مهم را راستی\u200cآزمایی کنید.",
 	"Loader": "بارگذار",
 	"Loading Kokoro.js...": "در حال بارگذاری Kokoro.js...",
+	"BoxedAI is processing your request": "BoxedAI در حال پردازش درخواست شما است",
 	"Loading...": "در حال بارگذاری...",
 	"local": "محلی",
 	"Local": "محلی",

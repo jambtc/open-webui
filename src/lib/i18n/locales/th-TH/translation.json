@@ -1174,6 +1174,7 @@
 	"LLMs can make mistakes. Verify important information.": "LLM อาจทำผิดพลาดได้ โปรดตรวจสอบข้อมูลสำคัญ",
 	"Loader": "ตัวโหลด",
 	"Loading Kokoro.js...": "กำลังโหลด Kokoro.js...",
+	"BoxedAI is processing your request": "BoxedAI กำลังประมวลผลคำขอของคุณ",
 	"Loading...": "กำลังโหลด...",
 	"local": "ภายในเครื่อง",
 	"Local": "ในเครื่อง",
