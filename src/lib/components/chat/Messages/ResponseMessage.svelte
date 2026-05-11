@@ -675,6 +675,10 @@
 			<div>
 				<div class="chat-{message.role} w-full min-w-full markdown-prose">
 					<div>
+						{#if message.content === '' && !message.done && !message.error && hasVisibleStatus}
+							<Skeleton />
+						{/if}
+
 						{#if model?.info?.meta?.capabilities?.status_updates ?? true}
 							<StatusHistory statusHistory={message?.statusHistory} />
 						{/if}
