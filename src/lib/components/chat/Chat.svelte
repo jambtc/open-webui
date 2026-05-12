@@ -1896,6 +1896,9 @@
 			toast.warning($i18n.t('Please connect all required integrations before sending a message'));
 			return;
 		}
+		if (userPrompt === '' && files.length > 0) {
+			userPrompt = $i18n.t('Describe the attached document(s).');
+		}
 		if (userPrompt === '' && files.length === 0) {
 			toast.error($i18n.t('Please enter a prompt'));
 			return;
