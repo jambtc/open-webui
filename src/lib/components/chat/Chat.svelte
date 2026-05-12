@@ -1896,8 +1896,14 @@
 			toast.warning($i18n.t('Please connect all required integrations before sending a message'));
 			return;
 		}
+		// When the user submits with files but no text, inject a default prompt
+		// so the upstream model has actual content to act on. The user message
+		// will carry an `injectedPlaceholder` flag so the UI hides the bubble
+		// (see UserMessage.svelte).
+		let injectedPlaceholder = false;
 		if (userPrompt === '' && files.length > 0) {
 			userPrompt = $i18n.t('Describe the attached document(s).');
+			injectedPlaceholder = true;
 		}
 		if (userPrompt === '' && files.length === 0) {
 			toast.error($i18n.t('Please enter a prompt'));
@@ -2002,7 +2008,8 @@
 			content: userPrompt,
 			files: _files.length > 0 ? _files : undefined,
 			timestamp: Math.floor(Date.now() / 1000), // Unix epoch
-			models: selectedModels
+			models: selectedModels,
+			...(injectedPlaceholder ? { injectedPlaceholder: true } : {})
 		};
 
 		// Add message to history and Set currentId to messageId
