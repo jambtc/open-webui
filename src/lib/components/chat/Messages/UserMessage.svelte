@@ -364,7 +364,7 @@
 						</div>
 					</div>
 				</div>
-			{:else if message.content !== ''}
+			{:else if message.content !== '' && !message?.injectedPlaceholder}
 				<div class="w-full">
 					<div class="flex {($settings?.chatBubble ?? true) ? 'justify-end pb-1' : 'w-full'}">
 						<div
