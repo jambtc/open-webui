@@ -42,6 +42,13 @@
 
 	let ldapUsername = '';
 
+	const getCookie = (name: string) => {
+		const match = document.cookie.match(
+			new RegExp('(?:^|; )' + name.replace(/([.$?*|{}()[\]\\/+^])/g, '\\$1') + '=([^;]*)')
+		);
+		return match ? decodeURIComponent(match[1]) : null;
+	};
+
 	const setSessionUser = async (sessionUser, redirectPath: string | null = null) => {
 		if (sessionUser) {
 			console.log(sessionUser);
@@ -114,14 +121,6 @@
 	};
 
 	const oauthCallbackHandler = async () => {
-		// Get the value of the 'token' cookie
-		function getCookie(name) {
-			const match = document.cookie.match(
-				new RegExp('(?:^|; )' + name.replace(/([.$?*|{}()[\]\\/+^])/g, '\\$1') + '=([^;]*)')
-			);
-			return match ? decodeURIComponent(match[1]) : null;
-		}
-
 		const token = getCookie('token');
 		if (!token) {
 			return;
@@ -180,7 +179,22 @@
 			toast.error(error);
 		}
 
+		// 1) Prima prova a finalizzare callback OAuth se cookie token è presente.
 		await oauthCallbackHandler();
+		// Se callback ha creato sessione, esci qui e lascia completare goto().
+		if (localStorage.getItem('token')) {
+			return;
+		}
+
+		// 2) Solo se NON c'è sessione e provider unico è OIDC, fai auto-redirect al login SSO.
+		const providers = Object.keys($config?.oauth?.providers ?? {});
+		const onlyOidc = providers.length === 1 && providers[0] === 'oidc';
+		const forceForm = !!$page.url.searchParams.get('form');
+		const hasTokenCookie = !!getCookie('token');
+		if (onlyOidc && !error && !forceForm && !hasTokenCookie) {
+			window.location.href = `${WEBUI_BASE_URL}/oauth/oidc/login`;
+			return;
+		}
 		form = $page.url.searchParams.get('form');
 
 		loaded = true;
